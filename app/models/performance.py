@@ -18,6 +18,7 @@ class Performance(Base):
     image_url = Column(String(300))
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_canceled = Column(Boolean, default=False)
+    shortcode = Column(String(100), nullable=True) # 중복 확인용
 
     venue = relationship("Venue", back_populates="performances")
     artists = relationship("Artist", secondary="performance_artists", back_populates="performances")

@@ -1,3 +1,4 @@
+# app/models/__init__.py
 from .user import User
 from .artist import Artist
 from .band import Band
