@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# 인스타그램 계정 목록
+app/services/instagram/data/account_list.json
+app/services/instagram/data/ig_login_state.json
+app/services/instagram/data/pewvious_posts.json
+app/services/instagram/data/today_new_posts.json
