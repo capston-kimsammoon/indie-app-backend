@@ -9,7 +9,6 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     kakao_id = Column(String(100), unique=True, index=True)
     nickname = Column(String(100))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     posts = relationship("Post", back_populates="user")
     comments = relationship("Comment", back_populates="user")
