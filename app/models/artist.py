@@ -11,6 +11,6 @@ class Artist(Base):
     spotify_url = Column(String(200))
     instagram_account = Column(String(100))
 
-    band = relationship("Band", back_populates="artists")
+    # band = relationship("Band", back_populates="artists")
     performances = relationship("Performance", secondary="performance_artists", back_populates="artists")
     favorite_users = relationship("User", secondary="user_artists_favorite", back_populates="favorite_artists")
