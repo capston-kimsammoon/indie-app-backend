@@ -218,7 +218,7 @@ venue_data = [
     {
         "name": '청주 골목다방[복합문화공간]',
         "address": '충북 청주시 상당구 사직대로361번길 8-14',
-        "region": '충북',
+        "region": '충청',
         "instagram_account": 'live_cafe_golvang_kendama'
     },
     {
@@ -239,16 +239,11 @@ venue_data = [
         "region": '서울',
         "instagram_account": 'stimpunkrock_livepub'
     },
-    {
-        "name": '나카스하이볼클럽',
-        "address": '서울 마포구 연희로1길 59 지층',
-        "region": '서울',
-        "instagram_account": 'nakasu_highball_club'
-    },
+    
     {
         "name": '언드',
         "address": '경남 거제시 거제대로 3734 지하1층 언드',
-        "region": '경남',
+        "region": '경상',
         "instagram_account": 'und_space'
     },
     {
@@ -269,12 +264,7 @@ venue_data = [
         "region": '서울',
         "instagram_account": 'goyoroom'
     },
-    {
-        "name": '에무 복합문화공간',
-        "address": '서울 종로구 경희궁1가길 7',
-        "region": '서울',
-        "instagram_account": 'panta.emu'
-    },
+    
     {
         "name": '클럽샤프',
         "address": '서울 마포구 동교로 63 지하1층',
@@ -470,7 +460,7 @@ venue_data = [
     {
         "name": '창원블레이홀',
         "address": '경남 창원시 성산구 외동 반림로 130번길 45',
-        "region": '경남',
+        "region": '경상',
         "instagram_account": 'bley_hall_'
     },
     {
@@ -512,8 +502,8 @@ venue_data = [
     {
         "name": '클럽 지피',
         "address": '전북 전주시 완산구 홍산북로 84-20 5층',
-        "region": '전북',
-        "instagram_account": 'hardrockclub_gp\n'
+        "region": '전라',
+        "instagram_account": 'hardrockclub_gp'
     },
     {
         "name": '에브리데이나잇',
