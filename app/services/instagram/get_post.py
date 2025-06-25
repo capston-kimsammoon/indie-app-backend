@@ -4,12 +4,14 @@ from playwright.sync_api import sync_playwright
 from .account_loader import load_accounts, load_previous_posts, save_accounts
 from .post_manager import is_duplicate_post
 from app.database import SessionLocal
+from .session_manager import save_instagram_login_session
 
 LOGIN_STATE_PATH = "app/services/instagram/data/ig_login_state.json"
 ACCOUNTS_PATH = "app/services/instagram/data/account_list.json"
 PREVIOUS_POSTS_PATH = "app/services/instagram/data/previous_posts.json"
 NEW_POSTS_PATH = 'app/services/instagram/data/today_new_posts.json'
 
+# save_instagram_login_session(LOGIN_STATE_PATH)
 
 # === 최신 게시물의 shortcode만 추출 ===
 def get_latest_shortcode(page, account, max_posts_to_check=4):
@@ -56,7 +58,7 @@ def get_post_info(page):
         # 본문 추출
         try:
             text = page.locator('div[role="dialog"] h1._ap3a').inner_text()
-            print('text: ', text)
+            # print('text: ', text)
         except:
             text = None
 
@@ -87,8 +89,10 @@ def get_posts_from_all_accounts():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(storage_state=LOGIN_STATE_PATH)
         page = context.new_page()
-
+        
+        cnt = 0
         for account in accounts:
+            cnt += 1
             print(f"🔍 Checking @{account} ...")
 
             shortcode = get_latest_shortcode(page, account)
@@ -96,7 +100,7 @@ def get_posts_from_all_accounts():
                 continue
 
             if previous_posts.get(account) != shortcode and not is_duplicate_post(db, shortcode):
-                print(f"🆕 New post found @{account}: {shortcode}")
+                # print(f"🆕 New post found @{account}")
 
                 # 게시물 클릭 → 게시물 정보 추출
                 try:
@@ -107,6 +111,7 @@ def get_posts_from_all_accounts():
                     post_info = get_post_info(page)
                     if post_info:
                         post_info.update({"account": account, "shortcode": shortcode})
+                        print(f"게시물 추출 성공 @{account}, ", cnt)
                         # save_post_to_db(post_info)  # 필요 시 DB 저장
                         previous_posts[account] = shortcode
                         new_posts[account] = shortcode
