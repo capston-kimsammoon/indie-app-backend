@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from app import models
 from .database import engine
 from app.database import Base
-from .services.instagram.info_extractor import extract_performance_info
+# from .services.instagram.info_extractor import extract_performance_info
 from .services.instagram.get_post import get_posts_from_all_accounts
 
 app = FastAPI()
