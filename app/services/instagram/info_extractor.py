@@ -7,10 +7,7 @@ from .utils import find_first_match
 
 # 공연제목
 def extract_title(text):
-        for line in text.splitlines():
-            if any(k in line for k in ["공연"]):
-                return line.strip()
-        return ""
+    return ""
 
 # 공연날짜
 def extract_date(text):
@@ -24,9 +21,6 @@ def extract_time(text):
 def extract_lineup(text):
     lines = text.splitlines()
     artists = []
-    for line in lines:
-        if '@' in line or 'with' in line.lower() or '출연' in line:
-            artists.append(line.strip())
     return artists
 
 # 가격
@@ -39,19 +33,11 @@ def extract_price_onsite(text):
 
 # 티켓오픈날짜
 def extract_ticket_open_date(text):
-    for line in text.splitlines():
-        if '예매' in line and any(k in line for k in ['오픈', '시작', '부터', '가능']):
-            return line.strip()
     return ""
 
 # 티켓오픈시간
 def extract_ticket_open_time(text):
     return ""
-
-# 티켓링크
-def extract_ticket_link(text):
-    match = re.search(TICKET_LINK_PATTERN, text)
-    return match.group(1) if match else ""
 
 def extract_performance_info(text):
     return {
@@ -63,5 +49,4 @@ def extract_performance_info(text):
         "price_onsite": extract_price_onsite(text),
         "ticket_open_date": extract_ticket_open_date(text),
         "ticket_open_time": extract_ticket_open_time(text),
-        "ticket_link": extract_ticket_link(text),
     }
