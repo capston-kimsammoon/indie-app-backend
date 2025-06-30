@@ -26,3 +26,19 @@
 #     if artist is None:
 #         raise HTTPException(status_code=404, detail="Artist not found")
 #     return artist
+
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.services.spotify.artist_service import get_or_create_artist
+from app.schemas.artist_schema import ArtistSchema
+
+router = APIRouter()
+
+@router.get("/artist/{name}", response_model=ArtistSchema)
+def get_artist(name: str, db: Session = Depends(get_db)):
+    artist = get_or_create_artist(db, name)
+    if not artist:
+        raise HTTPException(status_code=404, detail="Artist not found")
+    return artist
