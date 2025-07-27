@@ -3,11 +3,11 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 import datetime
 
-class UserArtistFavorite(Base):
-    __tablename__ = "user_artists_favorite"
+class UserFavoriteArtist(Base):
+    __tablename__ = "user_favorite_artist"
     
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    artist_id = Column(Integer, ForeignKey("artists.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
+    artist_id = Column(Integer, ForeignKey("artist.id"), primary_key=True)
 
     __table_args__ = (
         PrimaryKeyConstraint("user_id", "artist_id"),

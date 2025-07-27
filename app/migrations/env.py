@@ -1,6 +1,6 @@
-# import os
+import os
 # import sys
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 # from logging.config import fileConfig
 
 # # 프로젝트 루트를 sys.path에 추가 (절대 경로 사용)
@@ -11,14 +11,14 @@
 # from app.database import Base
 
 # # .env 파일 로드
-# load_dotenv()
+#load_dotenv()
 
 # # .env 파일에서 데이터베이스 연결 정보 불러오기
-# DB_HOST = os.getenv('DB_HOST', 'localhost')
-# DB_PORT = os.getenv('DB_PORT', '3306')
-# DB_USER = os.getenv('DB_USER', 'root')
-# DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
-# DB_NAME = os.getenv('DB_NAME', 'mydatabase')
+#DB_HOST = os.getenv('DB_HOST', 'localhost')
+#DB_PORT = os.getenv('DB_PORT', '3306')
+#DB_USER = os.getenv('DB_USER', 'root')
+#DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
+#DB_NAME = os.getenv('DB_NAME', 'mydatabase')
 
 # # Alembic config 가져오기
 # config = context.config
