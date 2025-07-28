@@ -1,10 +1,10 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, PrimaryKeyConstraint, Table
-from sqlalchemy.orm import relationship
-from app.database import Base
-import datetime
+# app/models/user_artist_ticketalarm.py
 
-class UserFavoriteArtist(Base):
-    __tablename__ = "user_favorite_artist"
+from sqlalchemy import Column, Integer, ForeignKey, PrimaryKeyConstraint
+from app.database import Base
+
+class UserArtistTicketAlarm(Base):
+    __tablename__ = "user_artist_ticketalarm"
     
     user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
     artist_id = Column(Integer, ForeignKey("artist.id"), primary_key=True)
