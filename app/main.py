@@ -1,18 +1,16 @@
 from fastapi import FastAPI
-from app import models
-from .database import engine
-from app.database import Base
-# from .services.instagram.info_extractor import extract_performance_info
-from .services.instagram.get_post import get_posts_from_all_accounts
+from app import models  # ✅ 반드시 먼저 import
+from app.database import Base, engine
+from app.routers import post
 
 app = FastAPI()
 
+# Alembic 사용 시 x
+# Base.metadata.create_all(bind=engine)
 
-# DB 테이블 생성
-Base.metadata.create_all(bind=engine)  # 테이블 생성
+# 라우터 등록
+app.include_router(post.router)
 
 @app.get("/")
-
 def root():
-    # get_posts_from_all_accounts()
     return {"message": "MySQL 테이블 생성 완료 !!"}
