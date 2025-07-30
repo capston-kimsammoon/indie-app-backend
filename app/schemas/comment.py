@@ -1,10 +1,12 @@
 # app/schemas/comment.py
-
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
 class CommentCreate(BaseModel):
+    content: str
+
+class CommentUpdate(BaseModel):
     content: str
 
 class CommentUser(BaseModel):

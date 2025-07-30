@@ -1,3 +1,4 @@
+# models/user.py
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -10,7 +11,7 @@ class User(Base):
     nickname = Column(String(100), unique=True) # 닉네임 중복 방지 
     profile_url = Column(String(300), nullable=True)
     alarm_enabled = Column(Boolean, nullable=False)
-    location_eneabled = Column(Boolean, nullable=False)
+    location_enabled = Column(Boolean, nullable=False)
 
     posts = relationship("Post", back_populates="user")
     comments = relationship("Comment", back_populates="user")
