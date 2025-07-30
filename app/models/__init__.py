@@ -12,6 +12,7 @@ from .artist import Artist
 from .performance import Performance
 from .venue import Venue
 from .post import Post
+from .post_image import PostImage
 from .comment import Comment
 from .performance_artist import PerformanceArtist
 from .user_favorite_artist import UserFavoriteArtist
