@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Path
 from typing import List, Optional
 from sqlalchemy.orm import Session
 import os
@@ -7,6 +7,7 @@ from uuid import uuid4
 # 의존성
 from app.database import get_db
 from app.utils.dependency import get_current_user
+from app.utils.dependency import get_current_user, get_current_user_optional
 
 # models
 from app.models.user import User
@@ -15,10 +16,12 @@ from app.models.user import User
 from app.schemas import post as post_schema
 from app.schemas import comment as comment_schema
 from app.schemas import user as user_schema
+from app.schemas.post import PostListResponse, PostDetailResponse, PostListItem
 
 # crud
 from app.crud import post as crud_post
 from app.crud import comment as comment_crud
+from app.crud import post as post_crud
 
 router = APIRouter(
     prefix="/post",
@@ -64,32 +67,6 @@ async def create_post(
         created_at=post.created_at
     )
 
-
-# 답글 작성
-@router.post("/{post_id}/comment/{comment_id}", response_model=comment_schema.CommentResponse)
-def create_comment_reply(
-    post_id: int,
-    comment_id: int,
-    comment_data: comment_schema.CommentCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    comment = comment_crud.create_reply(db, post_id, comment_id, current_user.id, comment_data)
-
-    return comment_schema.CommentResponse(
-        id=comment.id,
-        content=comment.content,
-        user=comment_schema.CommentUser(
-            id=current_user.id,
-            nickname=current_user.nickname,
-            profile_url=current_user.profile_url,
-        ),
-        created_at=comment.created_at,
-        parent_comment_id=comment.parent_comment_id,
-        isMine=True
-    )
-
-
 # 게시물 삭제
 @router.delete("/{post_id}", status_code=204)
 def delete_post(
@@ -106,3 +83,86 @@ def delete_post(
         raise HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있습니다.")
 
     crud_post.delete_post(db, post)
+
+# 1. 자유게시판 글 목록 조회
+@router.get("", response_model=PostListResponse)
+def get_posts(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1),
+    sort: str = Query("recent"),
+    type: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    total, posts = post_crud.get_post_list(db, page, size, sort, type)
+    return {
+        "page": page,
+        "totalPages": (total + size - 1) // size,
+        "posts": [
+            {
+                "id": post.id,
+                "title": post.title,
+                "author": post.user.nickname,
+                "likeCount": len(post.like),
+                "commentCount": len(post.comments),
+                "thumbnail": post.thumbnail_url,
+            }
+            for post in posts
+        ]
+    }
+
+# 2. 게시물 상세 조회
+@router.get("/{post_id}", response_model=PostDetailResponse)
+def get_post_detail(
+    post_id: int = Path(...),
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    post = post_crud.get_post_detail(db, post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    is_liked = user and post_crud.is_post_liked(db, user.id, post.id)
+    is_mine = user and user.id == post.user_id
+
+    return {
+        "id": post.id,
+        "title": post.title,
+        "content": post.content,
+        "user": {"id": post.user.id, "nickname": post.user.nickname},
+        "created_at": post.created_at.isoformat(),
+        "likeCount": len(post.like),
+        "commentCount": len(post.comments),
+        "isLiked": is_liked,
+        "isMine": is_mine,
+        "images": [img.url for img in post.images],
+    }
+
+# 3-1. 좋아요 ON
+@router.post("/{post_id}/like", status_code=status.HTTP_201_CREATED)
+def like_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    post = post_crud.get_post_detail(db, post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    if post_crud.is_post_liked(db, user.id, post_id):
+        raise HTTPException(status_code=409, detail="Already liked")
+
+    post_crud.create_post_like(db, user.id, post_id)
+    return {"message": "Post liked"}
+
+# 3-2. 좋아요 OFF
+@router.delete("/{post_id}/like", status_code=status.HTTP_204_NO_CONTENT)
+def unlike_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not post_crud.is_post_liked(db, user.id, post_id):
+        raise HTTPException(status_code=404, detail="Like not found")
+
+    post_crud.delete_post_like(db, user.id, post_id)

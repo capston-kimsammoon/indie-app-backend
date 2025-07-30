@@ -29,3 +29,32 @@ class PostRead(BaseModel):
     class Config:
         from_attributes = True
 
+
+class PostUser(BaseModel):
+    id: int
+    nickname: str
+
+class PostListItem(BaseModel):
+    id: int
+    title: str
+    author: str
+    likeCount: int
+    commentCount: int
+    thumbnail: Optional[str]
+
+class PostListResponse(BaseModel):
+    page: int
+    totalPages: int
+    posts: List[PostListItem]
+
+class PostDetailResponse(BaseModel):
+    id: int
+    title: str
+    content: str
+    user: PostUser
+    created_at: str
+    likeCount: int
+    commentCount: int
+    isLiked: bool
+    isMine: bool
+    images: List[str]

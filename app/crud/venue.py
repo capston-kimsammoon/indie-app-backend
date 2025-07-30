@@ -4,7 +4,7 @@ from app.models.venue import Venue
 from app.models.performance import Performance
 from datetime import date
 
-# 지역 이름)으로 공연장 목록 조회
+# 지역 이름으로 공연장 목록 조회
 def get_venues_by_region(db: Session, region: str, skip: int, limit: int):
     query = db.query(Venue).filter(Venue.region == region)
     total = query.count()

@@ -1,91 +1,35 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import Optional, List, Any
-from datetime import datetime
+from typing import Optional
 
 from app.database import get_db
-from app.models.artist import Artist
-from app.models.performance import Performance
-from app.models.performance_artist import PerformanceArtist
-from app.models.user_favorite_artist import UserFavoriteArtist
+from app.models.user import User
+from app.utils.dependency import get_current_user_optional
+from app.schemas.artist import ArtistListResponse, ArtistDetailResponse
+from app.crud.artist import get_artist_list, get_artist_detail
 
 router = APIRouter(prefix="/artist", tags=["Artist"])
 
-# 아티스트 1. 아티스트 목록 조회
-@router.get("")
-def get_artist_list(
+# [GET] 아티스트 목록 조회 API
+# 페이징 처리, 찜 여부 포함
+@router.get("", response_model=ArtistListResponse)
+def read_artist_list(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1),
     db: Session = Depends(get_db),
-    user: Optional[Any] = None
+    user: Optional[User] = Depends(get_current_user_optional)
 ):
-    query = db.query(Artist)
+    return get_artist_list(db, user.id if user else None, page, size)
 
-    total = query.count()
-    offset = (page - 1) * size
-    artists = query.offset(offset).limit(size).all()
-    total_pages = (total + size - 1) // size
-
-    result = []
-    for artist in artists:
-        is_liked = False
-        if user:
-            is_liked = db.query(UserFavoriteArtist).filter_by(user_id=user.id, artist_id=artist.id).first() is not None
-        result.append({
-            "id": artist.id,
-            "name": artist.name,
-            "image_url": artist.image_url,
-            "isLiked": is_liked
-        })
-
-    return {
-        "page": page,
-        "totalPages": total_pages,
-        "artists": result
-    }
-
-# 아티스트 2. 아티스트 상세 조회
-@router.get("/{id}")
-def get_artist_detail(
+# [GET] 아티스트 상세 조회 API
+# 기본 정보 + 예정/지난 공연 + 찜 여부 포함
+@router.get("/{id}", response_model=ArtistDetailResponse)
+def read_artist_detail(
     id: int,
     db: Session = Depends(get_db),
-    user: Optional[Any] = None
+    user: Optional[User] = Depends(get_current_user_optional)
 ):
-    artist = db.query(Artist).filter_by(id=id).first()
+    artist = get_artist_detail(db, id, user.id if user else None)
     if not artist:
         raise HTTPException(status_code=404, detail="Artist not found")
-
-    is_liked = False
-    if user:
-        is_liked = db.query(UserFavoriteArtist).filter_by(user_id=user.id, artist_id=id).first() is not None
-
-    now = datetime.now()
-    performance_ids = db.query(PerformanceArtist.performance_id).filter_by(artist_id=id).subquery()
-    performances = db.query(Performance).filter(Performance.id.in_(performance_ids)).all()
-
-    upcoming = []
-    past = []
-
-    for p in performances:
-        perf_data = {
-            "id": p.id,
-            "title": p.title,
-            "date": f"{p.date}T{p.time.strftime('%H:%M')}",
-            "image_url": p.image_url
-        }
-        if datetime.combine(p.date, p.time) >= now:
-            upcoming.append(perf_data)
-        else:
-            past.append(perf_data)
-
-    return {
-        "id": artist.id,
-        "name": artist.name,
-        "image_url": artist.image_url,
-        "spotify_url": artist.spotify_url,
-        "instagram_account": artist.instagram_account,
-        "isLiked": is_liked,
-        "upcomingPerformances": upcoming,
-        "pastPerformances": past
-    }
+    return artist
