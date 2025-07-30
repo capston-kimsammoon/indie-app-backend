@@ -1,11 +1,13 @@
 # app/schemas/comment.py
-
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
 # 댓글 작성 요청 시 사용하는 모델
 class CommentCreate(BaseModel):
+    content: str
+
+class CommentUpdate(BaseModel):
     content: str
 
 # 댓글 작성자 정보를 담는 서브 모델 (댓글 응답용)

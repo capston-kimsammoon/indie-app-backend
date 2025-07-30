@@ -1,5 +1,4 @@
 # app/models/user_performance_ticketalarm.py
-
 from sqlalchemy import Column, Integer, ForeignKey, PrimaryKeyConstraint
 from app.database import Base
 
