@@ -24,3 +24,4 @@ class Post(Base):
     comments = relationship("Comment", back_populates="post")
     like = relationship("PostLike", back_populates="post")
     images = relationship("PostImage", back_populates="post", cascade="all, delete-orphan")
+
