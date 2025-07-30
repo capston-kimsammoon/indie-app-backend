@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.post import Post
 from app.models.post_image import PostImage
+from app.models.post_like import PostLike
+from app.models.user import User
 import datetime
 
 # 게시물과 이미지 URL들을 생성하여 DB에 저장
@@ -40,3 +42,36 @@ def get_post_by_id(db: Session, post_id: int):
 def delete_post(db: Session, post: Post):
     db.delete(post)
     db.commit()
+
+
+def get_post_list(db: Session, page: int, size: int, sort: str, type: Optional[str]):
+    query = db.query(Post)
+    if type:
+        query = query.filter(Post.type == type)
+
+    total = query.count()
+
+    if sort == "like":
+        query = query.outerjoin(PostLike).group_by(Post.id).order_by(func.count(PostLike.id).desc())
+    else:
+        query = query.order_by(Post.created_at.desc())
+
+    posts = query.offset((page - 1) * size).limit(size).all()
+    return total, posts
+
+def get_post_detail(db: Session, post_id: int) -> Optional[Post]:
+    return db.query(Post).filter(Post.id == post_id).first()
+
+def is_post_liked(db: Session, user_id: int, post_id: int) -> bool:
+    return db.query(PostLike).filter_by(user_id=user_id, post_id=post_id).first() is not None
+
+def create_post_like(db: Session, user_id: int, post_id: int):
+    like = PostLike(user_id=user_id, post_id=post_id)
+    db.add(like)
+    db.commit()
+
+def delete_post_like(db: Session, user_id: int, post_id: int):
+    like = db.query(PostLike).filter_by(user_id=user_id, post_id=post_id).first()
+    if like:
+        db.delete(like)
+        db.commit()

@@ -11,6 +11,8 @@ from app.models.comment import Comment
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentUpdate 
 from app.utils.dependency import get_current_user, get_current_user_optional
+from app.crud import comment as comment_crud
+from app.schemas import comment as comment_schema
 
 router = APIRouter(tags=["Comment"])
 
@@ -148,3 +150,27 @@ def delete_comment(
         "message": "댓글이 삭제되었습니다.",
         "deletedCommentId": comment_id
     }
+
+# 답글 작성
+@router.post("/{post_id}/comment/{comment_id}", response_model=comment_schema.CommentResponse)
+def create_comment_reply(
+    post_id: int,
+    comment_id: int,
+    comment_data: comment_schema.CommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    comment = comment_crud.create_reply(db, post_id, comment_id, current_user.id, comment_data)
+
+    return comment_schema.CommentResponse(
+        id=comment.id,
+        content=comment.content,
+        user=comment_schema.CommentUser(
+            id=current_user.id,
+            nickname=current_user.nickname,
+            profile_url=current_user.profile_url,
+        ),
+        created_at=comment.created_at,
+        parent_comment_id=comment.parent_comment_id,
+        isMine=True
+    )
