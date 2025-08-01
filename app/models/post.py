@@ -12,7 +12,7 @@ class Post(Base):
     title = Column(String(200))
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    thumbnail_filename = Column(String, nullable=True)
+    thumbnail_filename = Column(String(255), nullable=True)
 
     @property
     def thumbnail_url(self):

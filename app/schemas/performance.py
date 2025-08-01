@@ -31,7 +31,7 @@ class PerformanceHomeItem(BaseModel):
     class Config:
         from_attributes = True
 
-class PerformanceListResponse(BaseModel):
+class PerformanceHomeListResponse(BaseModel):
     performances: List[PerformanceHomeItem]
 
 class RecommendationResponse(BaseModel):
@@ -43,7 +43,7 @@ class PerformanceListItem(BaseModel):
     id: int
     title: str
     venue: str
-    date: str  # ISO string
+    date: str
     thumbnail: Optional[str]
 
 

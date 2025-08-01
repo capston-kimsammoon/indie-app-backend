@@ -19,7 +19,7 @@ router = APIRouter(prefix="/performance", tags=["Performance"])
 
 @router.get("", response_model=PerformanceListResponse)
 def get_performance_list(
-    region: Optional[List[str]] = Query(None),
+    region: str = Query(..., description="지역 필터"),
     sort: str = Query("date", pattern="^(date|created_at|likes)$"),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1),
@@ -35,7 +35,7 @@ def get_performance_list(
                 id=p.id,
                 title=p.title,
                 venue=p.venue.name,
-                date=f"{p.date}T{p.time.strftime('%H:%M')}",
+                date=f"{p.date}T{p.time}",
                 thumbnail=p.image_url,
             )
             for p in performances

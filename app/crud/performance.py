@@ -72,8 +72,8 @@ def get_performances(
 ) -> (List[Performance], int):
     query = db.query(Performance).join(Venue)
 
-    if region and "전체" not in region:
-        query = query.filter(Venue.region.in_(region))
+    if region != "전체":
+        query = query.filter(Venue.region == region)
 
     if sort == "date":
         query = query.order_by(Performance.date.asc())
