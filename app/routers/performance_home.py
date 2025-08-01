@@ -6,13 +6,13 @@ from app.database import get_db
 from app.utils.dependency import get_current_user
 from app.models.user import User
 
-from app.schemas.performance import PerformanceHomeItem, PerformanceListResponse, RecommendationResponse
+from app.schemas.performance import PerformanceHomeItem, PerformanceHomeListResponse, RecommendationResponse
 import app.crud.performance as crud
 
 router = APIRouter(prefix="/performance/home", tags=["Performance Home"])
 
 # 오늘 예정된 공연
-@router.get("/today", response_model=PerformanceListResponse)
+@router.get("/today", response_model=PerformanceHomeListResponse)
 def today_performances(db: Session = Depends(get_db)):
     performances = crud.get_today_performances(db)
     return {
@@ -25,7 +25,7 @@ def today_performances(db: Session = Depends(get_db)):
     }
 
 # 최근 등록 공연
-@router.get("/recent", response_model=PerformanceListResponse)
+@router.get("/recent", response_model=PerformanceHomeListResponse)
 def recent_performances(limit: int = Query(6, ge=3, le=6), db: Session = Depends(get_db)):
     performances = crud.get_recent_performances(db, limit)
     return {
@@ -38,7 +38,7 @@ def recent_performances(limit: int = Query(6, ge=3, le=6), db: Session = Depends
     }
 
 # 티켓 오픈 예정 공연
-@router.get("/ticket-opening", response_model=PerformanceListResponse)
+@router.get("/ticket-opening", response_model=PerformanceHomeListResponse)
 def ticket_opening_performances(
     startDate: date = Query(...), endDate: date = Query(...), db: Session = Depends(get_db)
 ):
