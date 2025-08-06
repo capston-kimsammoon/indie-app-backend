@@ -1,7 +1,8 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from datetime import date
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from app.models.performance import Performance
 from app.models.venue import Venue
 from app.models.artist import Artist
@@ -69,15 +70,15 @@ def get_performances(
     sort: str,
     page: int,
     size: int,
-) -> (List[Performance], int):
+) -> Tuple[List[Performance], int]:
     query = db.query(Performance).join(Venue)
 
-    if region != "전체":
-        query = query.filter(Venue.region == region)
+    if region and "전체" not in region:
+        # ex: region = ["서울", "경기"]
+        filters = [Venue.region.ilike(f"%{r}%") for r in region]
+        query = query.filter(or_(*filters))
 
-    if sort == "date":
-        query = query.order_by(Performance.date.asc())
-    elif sort == "created_at":
+    if sort == "created_at":
         query = query.order_by(Performance.created_at.desc())
     elif sort == "likes":
         query = (
@@ -85,9 +86,12 @@ def get_performances(
             .group_by(Performance.id, Venue.id)
             .order_by(func.count(UserFavoritePerformance.user_id).desc())
         )
+    else:  
+        query = query.order_by(Performance.date.asc(), Performance.time.asc())
 
     total = query.count()
     performances = query.offset((page - 1) * size).limit(size).all()
+
     return performances, total
 
 

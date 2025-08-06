@@ -1,36 +1,51 @@
 from sqlalchemy.orm import Session
-from datetime import date
+from sqlalchemy import extract, or_
+from typing import List
 from app.models.performance import Performance
 from app.models.venue import Venue
 
-# 월별 공연 날짜 리스트 조회
-def get_calendar_summary_by_month(db: Session, year: int, month: int, region: str | None):
-    start_date = date(year, month, 1)
-    end_date = (
-        date(year, month + 1, 1) if month < 12
-        else date(year + 1, 1, 1)
+
+def parse_region_param(region) -> List[str]:
+    region_list = []
+    if region:
+        if isinstance(region, str):
+            region_list = [r.strip().lower() for r in region.split(",") if r.strip()]
+        elif isinstance(region, list):
+            for r in region:
+                for p in r.split(","):
+                    p = p.strip().lower()
+                    if p:
+                        region_list.append(p)
+    return region_list
+
+
+def get_calendar_summary_by_month(db: Session, year: int, month: int, region=None):
+    region_list = parse_region_param(region)
+
+    query = db.query(extract("day", Performance.date)).join(Venue)
+
+    if region_list and "전체" not in region_list:
+        conditions = [Venue.region.ilike(f"%{r}%") for r in region_list]
+        query = query.filter(or_(*conditions))
+
+    query = query.filter(
+        extract("year", Performance.date) == year,
+        extract("month", Performance.date) == month
     )
 
-    query = db.query(Performance.date).filter(
-        Performance.date >= start_date,
-        Performance.date < end_date
-    )
-
-    if region and region != "전체":
-        query = query.join(Performance.venue).filter(Venue.region == region)
-
-    result = query.all()
-    days = sorted({d.date.day for d in result})
-
-    return days
+    days = query.distinct().all()
+    return [day[0] for day in days]
 
 
-# 날짜별 공연 리스트 조회
-def get_performances_by_date(db: Session, target_date: date, region: str | None):
-    query = db.query(Performance).filter(Performance.date == target_date)
+def get_performances_by_date(db: Session, target_date, region=None):
+    region_list = parse_region_param(region)
 
-    if region and region != "전체":
-        query = query.join(Performance.venue).filter(Venue.region == region)
+    query = db.query(Performance).join(Venue)
 
-    performances = query.all()
-    return performances
+    if region_list and "전체" not in region_list:
+        conditions = [Venue.region.ilike(f"%{r}%") for r in region_list]
+        query = query.filter(or_(*conditions))
+
+    query = query.filter(Performance.date == target_date)
+
+    return query.all()

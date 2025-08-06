@@ -11,6 +11,7 @@ class PerformanceDetailResponse(BaseModel):
     id: int
     title: str
     date: datetime
+    venueId: int
     venue: str
     artists: List[ArtistSimple]
     price: Optional[str]

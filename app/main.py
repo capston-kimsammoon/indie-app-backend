@@ -6,7 +6,7 @@ from app.routers import (post, auth, user, search, nearby, venue, alert, like, p
 app = FastAPI()
 
 # Alembic 사용 시 x
-# Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 # 라우터 등록
 app.include_router(post.router)

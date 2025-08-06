@@ -7,6 +7,7 @@ from app.models.performance import Performance
 
 # 아티스트 목록 조회 (페이징 포함, 찜 여부 포함)
 def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
+    # 🔹 DB 세션이 FastAPI에서 관리되므로 try/except 불필요
     query = db.query(Artist)
     total = query.count()
     offset = (page - 1) * size
@@ -16,7 +17,10 @@ def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
     for artist in artists:
         is_liked = False
         if user_id:
-            is_liked = db.query(UserFavoriteArtist).filter_by(user_id=user_id, artist_id=artist.id).first() is not None
+            is_liked = db.query(UserFavoriteArtist).filter_by(
+                user_id=user_id, artist_id=artist.id
+            ).first() is not None
+
         result.append({
             "id": artist.id,
             "name": artist.name,
@@ -29,6 +33,7 @@ def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
         "totalPages": (total + size - 1) // size,
         "artists": result
     }
+
 
 # 아티스트 상세 정보 + 예정/지난 공연 목록 + 찜 여부 포함
 def get_artist_detail(db: Session, artist_id: int, user_id: int | None):

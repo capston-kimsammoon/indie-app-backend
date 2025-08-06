@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union
 from datetime import datetime
 
 from app.database import get_db
@@ -19,13 +19,28 @@ router = APIRouter(prefix="/performance", tags=["Performance"])
 
 @router.get("", response_model=PerformanceListResponse)
 def get_performance_list(
-    region: str = Query(..., description="지역 필터"),
+    region: Union[List[str], str, None] = Query(None, description="지역 필터"),
     sort: str = Query("date", pattern="^(date|created_at|likes)$"),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1),
     db: Session = Depends(get_db),
 ):
-    performances, total = performance_crud.get_performances(db, region, sort, page, size)
+    # 1. 문자열 또는 리스트로 들어온 region 파싱
+    region_list = []
+    if region:
+        if isinstance(region, str):
+            region_list = [r.strip().lower() for r in region.split(",") if r.strip()]
+        elif isinstance(region, list):
+            for r in region:
+                for p in r.split(","):
+                    p = p.strip().lower()
+                    if p:
+                        region_list.append(p)
+
+    # 2. crud로 전달
+    performances, total = performance_crud.get_performances(
+        db, region_list, sort, page, size
+    )
 
     return PerformanceListResponse(
         page=page,
@@ -63,6 +78,7 @@ def get_performance_detail(
         id=performance.id,
         title=performance.title,
         date=datetime.combine(performance.date, performance.time),
+        venueId=performance.venue.id,
         venue=performance.venue.name,
         artists=[
             ArtistSummary(id=a.id, name=a.name, image_url=a.image_url)
