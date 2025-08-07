@@ -1,11 +1,7 @@
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
-
-# 의존성
 from app.database import get_db
 from app.utils.dependency import get_current_user
-
-# models
 from app.models.performance import Performance
 from app.models.venue import Venue
 from app.models.user import User
@@ -13,16 +9,12 @@ from app.models.artist import Artist
 from app.models.post import Post
 from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
-
-# schemas
 from app.schemas import search as search_schema
+from app.utils.text_utils import clean_title   # ✅ 유틸에서 가져옴
 
-router = APIRouter(
-    prefix="/search",
-    tags=["Search"]
-)
+router = APIRouter(prefix="/search", tags=["Search"])
 
-# 공연/공연장 검색
+# 🎯 공연/공연장 검색
 @router.get("/performance", response_model=search_schema.PerformanceSearchResponse)
 def search_performance_and_venue(
     keyword: str = Query(..., description="검색 키워드"),
@@ -43,7 +35,7 @@ def search_performance_and_venue(
     performance_items = [
         search_schema.PerformanceSearchItem(
             id=p.id,
-            title=p.title,
+            title=clean_title(p.title),  # ✅ 중복 제거 적용
             venue=p.venue.name,
             date=f"{p.date}T{p.time}",
             image_url=p.image_url
@@ -51,29 +43,23 @@ def search_performance_and_venue(
     ]
 
     # 공연장 검색
-    venue_query = db.query(Venue).filter(
-        Venue.name.ilike(f"%{keyword}%")
-    ).all()
-
     venue_items = [
         search_schema.VenueSearchItem(
             id=v.id,
             name=v.name,
             address=v.address,
             image_url=v.image_url
-        ) for v in venue_query
+        ) for v in db.query(Venue).filter(Venue.name.ilike(f"%{keyword}%")).all()
     ]
-
-    total_pages = (total + size - 1) // size
 
     return search_schema.PerformanceSearchResponse(
         page=page,
-        totalPages=total_pages,
+        totalPages=(total + size - 1) // size,
         performance=performance_items,
         venue=venue_items
     )
 
-# 아티스트 검색
+# 🎤 아티스트 검색
 @router.get("/artist", response_model=search_schema.ArtistSearchResponse)
 def search_artist(
     keyword: str,
@@ -83,34 +69,22 @@ def search_artist(
     current_user: User = Depends(get_current_user)
 ):
     skip = (page - 1) * size
+    artists = db.query(Artist).filter(Artist.name.contains(keyword)).offset(skip).limit(size).all()
+    total = db.query(Artist).filter(Artist.name.contains(keyword)).count()
 
-    artist_query = db.query(Artist).filter(Artist.name.contains(keyword))
-    total = artist_query.count()
-    artists = artist_query.offset(skip).limit(size).all()
+    result = [
+        search_schema.ArtistSearchItem(
+            id=a.id,
+            name=a.name,
+            profile_url=a.image_url,
+            isLiked=db.query(UserFavoriteArtist).filter_by(user_id=current_user.id, artist_id=a.id).first() is not None,
+            isAlarmEnabled=db.query(UserArtistTicketAlarm).filter_by(user_id=current_user.id, artist_id=a.id).first() is not None
+        ) for a in artists
+    ]
 
-    result = []
-    for artist in artists:
-        is_liked = db.query(UserFavoriteArtist).filter_by(user_id=current_user.id, artist_id=artist.id).first() is not None
-        is_alarm_enabled = db.query(UserArtistTicketAlarm).filter_by(user_id=current_user.id, artist_id=artist.id).first() is not None
-        result.append(
-            search_schema.ArtistSearchItem(
-                id=artist.id,
-                name=artist.name,
-                profile_url=artist.image_url,
-                isLiked=is_liked,
-                isAlarmEnabled=is_alarm_enabled
-            )
-        )
+    return search_schema.ArtistSearchResponse(page=page, totalPages=(total + size - 1) // size, artists=result)
 
-    total_pages = (total + size - 1) // size
-
-    return search_schema.ArtistSearchResponse(
-        page=page,
-        totalPages=total_pages,
-        artists=result
-    )
-
-# 자유게시판 검색
+# 📝 자유게시판 검색
 @router.get("/post", response_model=search_schema.PostSearchResponse)
 def search_post(
     keyword: str,
@@ -119,10 +93,8 @@ def search_post(
     db: Session = Depends(get_db)
 ):
     skip = (page - 1) * size
-
-    query = db.query(Post).filter(Post.title.contains(keyword))
-    total = query.count()
-    posts = query.offset(skip).limit(size).all()
+    posts = db.query(Post).filter(Post.title.contains(keyword)).offset(skip).limit(size).all()
+    total = db.query(Post).filter(Post.title.contains(keyword)).count()
 
     result = [
         search_schema.PostSearchItem(
@@ -133,10 +105,4 @@ def search_post(
         ) for p in posts
     ]
 
-    total_pages = (total + size - 1) // size
-
-    return search_schema.PostSearchResponse(
-        page=page,
-        totalPages=total_pages,
-        posts=result
-    )
+    return search_schema.PostSearchResponse(page=page, totalPages=(total + size - 1) // size, posts=result)
