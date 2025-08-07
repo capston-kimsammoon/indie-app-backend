@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
-from typing import Optional, List, Any
+from typing import Optional, List
 from datetime import datetime
 
 from app.database import get_db
@@ -17,6 +17,7 @@ from app.utils.dependency import get_current_user_optional
 router = APIRouter(prefix="/performance", tags=["Performance"])
 
 
+# ✅ 공연 목록 조회
 @router.get("", response_model=PerformanceListResponse)
 def get_performance_list(
     region: Optional[List[str]] = Query(None),
@@ -35,7 +36,8 @@ def get_performance_list(
                 id=p.id,
                 title=p.title,
                 venue=p.venue.name,
-                date=f"{p.date}T{p.time.strftime('%H:%M')}",
+                date=p.date.isoformat(),                           # ✅ 날짜 ISO 문자열
+                time=p.time.strftime("%H:%M") if p.time else None, # ✅ time 안전 처리
                 thumbnail=p.image_url,
             )
             for p in performances
@@ -43,6 +45,7 @@ def get_performance_list(
     )
 
 
+# ✅ 공연 상세 조회 (venueId 추가)
 @router.get("/{id}", response_model=PerformanceDetailResponse)
 def get_performance_detail(
     id: int,
@@ -54,6 +57,8 @@ def get_performance_detail(
         raise HTTPException(status_code=404, detail="Performance not found")
 
     artists = performance_crud.get_performance_artists(db, id)
+
+    # ✅ 찜/알림 여부
     is_liked = is_alarmed = False
     if user:
         is_liked = performance_crud.is_user_liked_performance(db, user.id, id)
@@ -63,6 +68,7 @@ def get_performance_detail(
         id=performance.id,
         title=performance.title,
         date=datetime.combine(performance.date, performance.time),
+        venueId=performance.venue.id,                 # ✅ 추가됨
         venue=performance.venue.name,
         artists=[
             ArtistSummary(id=a.id, name=a.name, image_url=a.image_url)
