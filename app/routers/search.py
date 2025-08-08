@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.database import get_db
 from app.utils.dependency import get_current_user
 from app.models.performance import Performance
@@ -10,7 +11,7 @@ from app.models.post import Post
 from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
 from app.schemas import search as search_schema
-from app.utils.text_utils import clean_title   # ✅ 유틸에서 가져옴
+from app.utils.text_utils import clean_title
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
@@ -24,7 +25,6 @@ def search_performance_and_venue(
 ):
     skip = (page - 1) * size
 
-    # 공연 검색
     performance_query = db.query(Performance).join(Venue).filter(
         (Performance.title.ilike(f"%{keyword}%")) |
         (Venue.name.ilike(f"%{keyword}%"))
@@ -35,14 +35,13 @@ def search_performance_and_venue(
     performance_items = [
         search_schema.PerformanceSearchItem(
             id=p.id,
-            title=clean_title(p.title),  # ✅ 중복 제거 적용
+            title=clean_title(p.title),
             venue=p.venue.name,
             date=f"{p.date}T{p.time}",
             image_url=p.image_url
         ) for p in performances
     ]
 
-    # 공연장 검색
     venue_items = [
         search_schema.VenueSearchItem(
             id=v.id,
@@ -82,7 +81,11 @@ def search_artist(
         ) for a in artists
     ]
 
-    return search_schema.ArtistSearchResponse(page=page, totalPages=(total + size - 1) // size, artists=result)
+    return search_schema.ArtistSearchResponse(
+        page=page,
+        totalPages=(total + size - 1) // size,
+        artists=result
+    )
 
 # 📝 자유게시판 검색
 @router.get("/post", response_model=search_schema.PostSearchResponse)
@@ -93,8 +96,17 @@ def search_post(
     db: Session = Depends(get_db)
 ):
     skip = (page - 1) * size
-    posts = db.query(Post).filter(Post.title.contains(keyword)).offset(skip).limit(size).all()
-    total = db.query(Post).filter(Post.title.contains(keyword)).count()
+
+    # 🔧 제목 또는 본문에서 키워드 검색 (둘 다 가능하게)
+    post_query = db.query(Post).filter(
+        or_(
+            Post.title.ilike(f"%{keyword}%"),
+            Post.content.ilike(f"%{keyword}%")
+        )
+    )
+
+    total = post_query.count()
+    posts = post_query.offset(skip).limit(size).all()
 
     result = [
         search_schema.PostSearchItem(
@@ -105,4 +117,8 @@ def search_post(
         ) for p in posts
     ]
 
-    return search_schema.PostSearchResponse(page=page, totalPages=(total + size - 1) // size, posts=result)
+    return search_schema.PostSearchResponse(
+        page=page,
+        totalPages=(total + size - 1) // size,
+        posts=result
+    )
