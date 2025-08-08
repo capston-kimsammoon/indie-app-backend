@@ -1,3 +1,4 @@
+#스키마/캘린더.py
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -17,5 +18,5 @@ class CalendarPerformanceItem(BaseModel):
 # 날짜별 공연 리스트 응답 스키마
 class CalendarPerformanceListResponse(BaseModel):
     date: str
-    region: str
+    region: List[str]  # ✅ 여기를 수정 (str → List[str])
     performances: List[CalendarPerformanceItem]

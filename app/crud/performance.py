@@ -1,3 +1,4 @@
+#크루드/퍼포먼스.py
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from datetime import date
@@ -62,7 +63,6 @@ def get_recommendation_performances(db: Session, user_id: int) -> List[Performan
         .all()
     )
 
-
 def get_performances(
     db: Session,
     region: Optional[List[str]],
@@ -72,8 +72,10 @@ def get_performances(
 ) -> (List[Performance], int):
     query = db.query(Performance).join(Venue)
 
-    if region and "전체" not in region:
-        query = query.filter(Venue.region.in_(region))
+    if region:
+        region = [r.strip() for r in region if r and r.strip() != "전체"]
+        if region:
+            query = query.filter(Venue.region.in_(region))
 
     if sort == "date":
         query = query.order_by(Performance.date.asc())
@@ -89,7 +91,6 @@ def get_performances(
     total = query.count()
     performances = query.offset((page - 1) * size).limit(size).all()
     return performances, total
-
 
 def get_performance_detail(db: Session, performance_id: int) -> Optional[Performance]:
     return db.query(Performance).filter(Performance.id == performance_id).first()
@@ -110,3 +111,7 @@ def is_user_liked_performance(db: Session, user_id: int, performance_id: int) ->
 
 def is_user_alarmed_performance(db: Session, user_id: int, performance_id: int) -> bool:
     return db.query(UserPerformanceTicketAlarm).filter_by(user_id=user_id, performance_id=performance_id).first() is not None
+
+# 공연 좋아요 수 조회
+def get_performance_like_count(db: Session, performance_id: int) -> int:
+    return db.query(UserFavoritePerformance).filter_by(performance_id=performance_id).count()

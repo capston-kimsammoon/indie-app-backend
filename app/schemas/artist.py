@@ -38,7 +38,7 @@ class PerformanceSimple(BaseModel):
     date: str  # ISO 형식 문자열
     image_url: Optional[str]
 
-# 아티스트 상세 응답 구조
+# ✅ 아티스트 상세 응답 구조 (🔧 수정됨)
 class ArtistDetailResponse(BaseModel):
     id: int
     name: str
@@ -46,5 +46,6 @@ class ArtistDetailResponse(BaseModel):
     spotify_url: Optional[str]
     instagram_account: Optional[str]
     isLiked: bool
+    isNotified: bool  # ✅ 여기 추가!
     upcomingPerformances: List[PerformanceSimple]
     pastPerformances: List[PerformanceSimple]

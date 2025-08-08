@@ -5,6 +5,7 @@ from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.performance_artist import PerformanceArtist
 from app.models.performance import Performance
 from app.utils.text_utils import clean_title   # ✅ 유틸에서 가져옴
+from app.models.user_artist_ticketalarm import UserArtistTicketAlarm  # ✅ 추가!
 
 # 아티스트 목록 조회 (변경 없음)
 def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
@@ -30,13 +31,29 @@ def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
     }
 
 # 아티스트 상세 조회 (✅ 공연 제목 clean_title 적용)
+
 def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
     artist = db.query(Artist).filter_by(id=artist_id).first()
     if not artist:
         return None
 
-    is_liked = db.query(UserFavoriteArtist).filter_by(user_id=user_id, artist_id=artist_id).first() is not None if user_id else False
+    # ✅ 찜 여부
+    is_liked = (
+        db.query(UserFavoriteArtist)
+        .filter_by(user_id=user_id, artist_id=artist_id)
+        .first()
+        is not None if user_id else False
+    )
 
+    # ✅ 알림 여부 (추가)
+    is_notified = (
+        db.query(UserArtistTicketAlarm)
+        .filter_by(user_id=user_id, artist_id=artist_id)
+        .first()
+        is not None if user_id else False
+    )
+
+    # ✅ 관련 공연 가져오기
     performance_ids = db.query(PerformanceArtist.performance_id).filter_by(artist_id=artist_id).subquery()
     performances = db.query(Performance).filter(Performance.id.in_(performance_ids)).all()
 
@@ -45,11 +62,14 @@ def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
     for p in performances:
         perf_data = {
             "id": p.id,
-            "title": clean_title(p.title),  # ✅ 중복 제거 적용
+            "title": clean_title(p.title),
             "date": f"{p.date}T{p.time.strftime('%H:%M')}",
             "image_url": p.image_url
         }
-        (upcoming if datetime.combine(p.date, p.time) >= now else past).append(perf_data)
+        if datetime.combine(p.date, p.time) >= now:
+            upcoming.append(perf_data)
+        else:
+            past.append(perf_data)
 
     return {
         "id": artist.id,
@@ -58,6 +78,7 @@ def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
         "spotify_url": artist.spotify_url,
         "instagram_account": artist.instagram_account,
         "isLiked": is_liked,
+        "isNotified": is_notified,  # ✅ 여기 포함!
         "upcomingPerformances": upcoming,
         "pastPerformances": past
     }

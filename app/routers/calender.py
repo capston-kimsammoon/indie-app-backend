@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import date
+from fastapi.responses import JSONResponse
 
 from app.database import get_db
 from app.schemas.calendar import (
@@ -16,12 +17,12 @@ from app.crud.calendar import (
 
 router = APIRouter(prefix="/calendar", tags=["Calendar"])
 
-# [GET] 월별 공연 날짜 마킹 API
+
 @router.get("/summary", response_model=CalendarSummaryResponse)
 def read_calendar_summary(
-    year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
-    region: Optional[str] = None,
+    year: int = Query(...),
+    month: int = Query(...),
+    region: Optional[List[str]] = Query(None),
     db: Session = Depends(get_db),
 ):
     days = get_calendar_summary_by_month(db, year, month, region)
@@ -31,24 +32,35 @@ def read_calendar_summary(
         "hasPerformanceDates": days
     }
 
-# [GET] 특정 날짜 공연 리스트 API
 @router.get("/performance/by-date", response_model=CalendarPerformanceListResponse)
 def read_performances_by_date(
     date: date = Query(...),
-    region: Optional[str] = None,
+    region: Optional[List[str]] = Query(None),
     db: Session = Depends(get_db),
 ):
-    performances = get_performances_by_date(db, date, region)
+    try:
+        performances = get_performances_by_date(db, date, region)
 
-    return {
-        "date": str(date),
-        "region": region if region else "전체",
-        "performances": [
+        result = [
             CalendarPerformanceItem(
                 id=p.id,
                 title=p.title,
-                venue=p.venue.name,
+                venue=p.venue.name if p.venue else "알 수 없음",
                 thumbnail=p.image_url
-            ) for p in performances
+            )
+            for p in performances
         ]
-    }
+
+        return {
+            "date": str(date),
+            "region": region if region else [],  # ✅ 여기를 고친 거야 (반드시 List[str]로 반환)
+            "performances": result
+        }
+
+    except Exception as e:
+        print(f"🚨 공연 조회 실패: {e}")
+        return {
+            "date": str(date),
+            "region": region if region else [],  # ✅ 여기도 똑같이
+            "performances": []
+        }
