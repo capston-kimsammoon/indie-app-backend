@@ -24,6 +24,8 @@ class PostRead(BaseModel):
     content: str
     user: UserRead
     imageURLs: List[str]
+    thumbnail_filename: Optional[str]
+    thumbnail_url: Optional[str]  
     created_at: datetime
 
     class Config:
@@ -33,10 +35,16 @@ class PostRead(BaseModel):
 class PostUser(BaseModel):
     id: int
     nickname: str
+    profile_url: Optional[str] = None  
+
+    class Config:
+        from_attributes = True  
+
 
 class PostListItem(BaseModel):
     id: int
     title: str
+    content: str
     author: str
     likeCount: int
     commentCount: int

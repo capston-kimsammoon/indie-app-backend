@@ -17,7 +17,7 @@ class Post(Base):
     @property
     def thumbnail_url(self):
         if self.thumbnail_filename:
-            return f"https://your.cdn.com/thumbnails/{self.thumbnail_filename}"
+            return f"/static/uploads/{self.thumbnail_filename}"
         return None
 
     user = relationship("User", back_populates="posts")

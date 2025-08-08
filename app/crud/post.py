@@ -13,13 +13,15 @@ def create_post(
     user_id: int,
     title: str,
     content: str,
-    image_urls: Optional[List[str]] = None
+    image_urls: Optional[List[str]] = None,
+    thumbnail_filename: Optional[str] = None,
 ):
     post = Post(
         user_id=user_id,
         title=title,
         content=content,
-        created_at=datetime.datetime.utcnow()
+        created_at=datetime.datetime.utcnow(),
+        thumbnail_filename=thumbnail_filename
     )
     db.add(post)
     db.commit()
@@ -75,3 +77,5 @@ def delete_post_like(db: Session, user_id: int, post_id: int):
     if like:
         db.delete(like)
         db.commit()
+        
+        

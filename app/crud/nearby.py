@@ -47,7 +47,7 @@ def get_performances_in_bounds(db: Session, req):
             }
         venue_dict[v.id]["performance"].append({
             "id": p.id,
-            "time": p.date.strftime("%I%p").lstrip("0").lower(),
+            "time": p.time.strftime("%H:%M:%S") if p.time else None,
             "image_url": p.image_url
         })
 
@@ -64,7 +64,7 @@ def get_performances_by_venue(db: Session, venue_id: int, after: datetime):
     return [{
         "performance_id": p.id,
         "title": p.title,
-        "time": p.date.strftime("%I%p").lstrip("0").lower(),
+        "time": p.time.strftime("%H:%M:%S") if p.time else None,
         "address": p.venue.address,
         "image_url": p.image_url
     } for p in performances]

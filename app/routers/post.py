@@ -27,7 +27,8 @@ router = APIRouter(
     prefix="/post",
     tags=["Post"]
 )
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 # 게시물 작성 (이미지 여러 장 첨부 가능)
 @router.post("", response_model=post_schema.PostRead)
 async def create_post(
@@ -38,24 +39,31 @@ async def create_post(
     current_user: User = Depends(get_current_user),
 ):
     image_urls = []
+    thumbnail_filename = None
     if images:
         upload_dir = "app/static/uploads"
         os.makedirs(upload_dir, exist_ok=True)
 
-        for image in images:
+        for idx, image in enumerate(images):
             ext = os.path.splitext(image.filename)[1]
             filename = f"{uuid4().hex}{ext}"
             save_path = os.path.join(upload_dir, filename)
             with open(save_path, "wb") as f:
                 f.write(await image.read())
-            image_urls.append(f"/{save_path.replace(os.sep, '/')}")
+            image_url = f"/static/uploads/{filename}"
+            image_urls.append(image_url)
+
+            # 첫 번째 이미지를 썸네일로 설정
+            if idx == 0:
+                thumbnail_filename = filename
 
     post = crud_post.create_post(
         db=db,
         user_id=current_user.id,
         title=title,
         content=content,
-        image_urls=image_urls
+        image_urls=image_urls,
+        thumbnail_filename=thumbnail_filename
     )
 
     return post_schema.PostRead(
@@ -64,6 +72,8 @@ async def create_post(
         content=post.content,
         user=user_schema.UserRead.from_orm(post.user),
         imageURLs=[img.image_url for img in post.images],
+        thumbnail_filename=post.thumbnail_filename,
+        thumbnail_url=post.thumbnail_url,
         created_at=post.created_at
     )
 
@@ -81,8 +91,24 @@ def delete_post(
 
     if post.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있습니다.")
+    if post.images:
+        for image_url in post.images:  # ex) "/static/post_images/abc.jpg"
+            try:
+                # 실제 파일 경로로 변환
+                relative_path = image_url.replace("/static/", "")  # "post_images/abc.jpg"
+                image_path = os.path.join(STATIC_DIR, relative_path)
 
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                    print(f"✅ 삭제됨: {image_path}")
+                else:
+                    print(f"❌ 파일 없음: {image_path}")
+            except Exception as e:
+                print(f"🔥 이미지 삭제 실패: {e}")
+    from app.models.comment import Comment  # 또는 경로에 맞게 import 수정
+    db.query(Comment).filter(Comment.post_id == post_id).delete()
     crud_post.delete_post(db, post)
+    db.commit()
 
 # 1. 자유게시판 글 목록 조회
 @router.get("", response_model=PostListResponse)
@@ -102,7 +128,9 @@ def get_posts(
             {
                 "id": post.id,
                 "title": post.title,
+                "content": post.content,
                 "author": post.user.nickname,
+                "user_id": post.user.id,
                 "likeCount": len(post.like),
                 "commentCount": len(post.comments),
                 "thumbnail": post.thumbnail_url,
@@ -129,13 +157,14 @@ def get_post_detail(
         "id": post.id,
         "title": post.title,
         "content": post.content,
-        "user": {"id": post.user.id, "nickname": post.user.nickname},
+        "user": {"id": post.user.id, "nickname": post.user.nickname, "profile_url": post.user.profile_url },
         "created_at": post.created_at.isoformat(),
         "likeCount": len(post.like),
         "commentCount": len(post.comments),
         "isLiked": is_liked,
         "isMine": is_mine,
-        "images": [img.url for img in post.images],
+        "images": [img.image_url for img in post.images],
+
     }
 
 # 3-1. 좋아요 ON
@@ -166,3 +195,4 @@ def unlike_post(
         raise HTTPException(status_code=404, detail="Like not found")
 
     post_crud.delete_post_like(db, user.id, post_id)
+
