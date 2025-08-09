@@ -47,7 +47,7 @@ def get_venue_list(
     venues = query.offset(skip).limit(size).all()
 
     result = [
-        VenueListItem(id=v.id, name=v.name, region=v.region, image_url=v.image_url)
+        VenueListItem(id=v.id, name=v.name,        address=v.address,         region=v.region, image_url=v.image_url)
         for v in venues
     ]
 
