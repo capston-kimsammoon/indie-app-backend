@@ -6,9 +6,16 @@ from app.routers import (
     performance, performance_home, calender, artist, comment
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 # ✅ FastAPI 앱 초기화
 app = FastAPI()
+
+# ✅ 정적 파일 경로 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ✅ 프론트엔드 출처
 origins = [

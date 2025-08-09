@@ -175,3 +175,5 @@ cython_debug/
 
 # 인스타그램 계정 목록
 app/services/instagram/data/ig_login_state.json
+
+app/static/

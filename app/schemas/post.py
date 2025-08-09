@@ -24,19 +24,25 @@ class PostRead(BaseModel):
     content: str
     user: UserRead
     imageURLs: List[str]
+    thumbnail_filename: Optional[str]   # ✅ 조수아 추가
+    thumbnail_url: Optional[str]        # ✅ 조수아 추가
     created_at: datetime
 
     class Config:
         from_attributes = True
 
-
 class PostUser(BaseModel):
     id: int
     nickname: str
+    profile_url: Optional[str] = None   # ✅ 조수아 추가
+
+    class Config:                        # ✅ 조수아 추가
+        from_attributes = True
 
 class PostListItem(BaseModel):
     id: int
     title: str
+    content: str                        # ✅ 조수아 추가
     author: str
     likeCount: int
     commentCount: int

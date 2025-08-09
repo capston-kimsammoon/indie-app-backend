@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Query
 from sqlalchemy.orm import Session
 import datetime
+import os
+from pathlib import Path
 
 from app.database import get_db
 from app.utils.dependency import get_current_user
@@ -22,6 +24,9 @@ from app.models.performance import Performance
 from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_favorite_performance import UserFavoritePerformance
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
+
+BASE_DIR = Path(__file__).resolve().parent.parent  # app/ 내부라면
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 router = APIRouter(
     prefix="/user",
@@ -59,11 +64,17 @@ async def update_profile_image(
     if not profileImage:
         raise HTTPException(status_code=400, detail="이미지가 필요합니다")
 
-    save_path = f"app/static/profiles/{user.id}_{profileImage.filename}"
+    save_dir = os.path.join(STATIC_DIR, "profiles")
+    os.makedirs(save_dir, exist_ok=True)
+
+    filename = f"{user.id}_{profileImage.filename}"
+    save_path = os.path.join(save_dir, filename)
+
     with open(save_path, "wb") as f:
         f.write(await profileImage.read())
 
-    image_url = f"https://example.com/{save_path}"
+    image_url = f"http://localhost:8000/static/profiles/{user.id}_{profileImage.filename}"
+
     user.profile_url = image_url
     db.commit()
     db.refresh(user)
