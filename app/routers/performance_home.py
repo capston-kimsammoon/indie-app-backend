@@ -1,5 +1,4 @@
 # app/router/performance/home.py
-
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
@@ -58,10 +57,11 @@ def ticket_opening_performances(
                 id=p.id,
                 title=p.title,
                 date=p.date.isoformat(),
-                time=p.time.strftime("%H:%M"),
+                # ⬇️ 공연 시간이 아니라 "티켓 오픈 시간"을 내려줍니다.
+                time=(p.ticket_open_time.strftime("%H:%M") if p.ticket_open_time else None),
                 venue=p.venue.name,
                 thumbnail=p.image_url,
-                ticket_open_date=p.ticket_open_date  # ✅ 핵심
+                ticket_open_date=p.ticket_open_date  # ← date 타입이면 자동 ISO('YYYY-MM-DD')
             ) for p in performances
         ]
     }
