@@ -1,4 +1,5 @@
 # app/crud/post.py
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.post import Post
@@ -14,7 +15,7 @@ def create_post(
     title: str,
     content: str,
     image_urls: Optional[List[str]] = None,
-thumbnail_filename: Optional[str] = None,
+    thumbnail_filename: Optional[str] = None,
 ):
     post = Post(
         user_id=user_id,

@@ -1,7 +1,5 @@
-# app/models/comment.py
-
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref   # ⬅ backref 추가
 from app.database import Base
 import datetime
 
@@ -19,4 +17,12 @@ class Comment(Base):
     user = relationship("User", back_populates="comments")
     post = relationship("Post", back_populates="comments")
 
-    parent_comment = relationship("Comment", remote_side=[id], backref="replies")
+    parent_comment = relationship(
+        "Comment",
+        remote_side=[id],
+        backref=backref(
+            "replies",
+            cascade="all, delete-orphan",  
+            single_parent=True,          
+        ),
+    )

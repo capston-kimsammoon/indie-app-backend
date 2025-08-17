@@ -5,6 +5,7 @@ from enum import Enum
 class TargetType(str, Enum):
     performance = "performance"
     artist = "artist"
+    ticket_open = "ticket_open"
 
 class TargetRequest(BaseModel):
     type: TargetType
