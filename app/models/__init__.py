@@ -19,3 +19,4 @@ from .user_favorite_artist import UserFavoriteArtist
 from .user_favorite_performance import UserFavoritePerformance
 from .user_performance_ticketalarm import UserPerformanceTicketAlarm
 from .user_artist_ticketalarm import UserArtistTicketAlarm
+from .user_performance_open_alarm import UserPerformanceOpenAlarm  # noqa
