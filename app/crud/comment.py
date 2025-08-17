@@ -163,14 +163,35 @@ def delete_comment(
     comment_id: int,
     user_id: int,
 ):
-    comment = (
-        db.query(Comment).filter_by(id=comment_id, post_id=post_id).first()
-    )
+    # 1) 권한/존재 확인
+    comment = db.query(Comment).filter_by(id=comment_id, post_id=post_id).first()
     if not comment:
         raise HTTPException(status_code=404, detail="댓글이 존재하지 않습니다.")
     if comment.user_id != user_id:
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
 
+    # 2) 대댓글(자손)부터 모두 수집해서 먼저 삭제
+    #    (자기참조 FK 때문에 부모를 먼저 지우면 1451 에러)
+    descendants: list[int] = []
+    to_visit = [comment_id]
+
+    while to_visit:
+        # 현재 레벨의 자식 id 모음
+        child_ids = [
+            cid for (cid,) in
+            db.query(Comment.id)
+              .filter(Comment.parent_comment_id.in_(to_visit))
+              .all()
+        ]
+        if not child_ids:
+            break
+        descendants.extend(child_ids)
+        to_visit = child_ids
+
+    if descendants:
+        db.query(Comment).filter(Comment.id.in_(descendants)).delete(synchronize_session=False)
+
+    # 3) 부모 댓글 삭제
     db.delete(comment)
     db.commit()
     return comment_id
