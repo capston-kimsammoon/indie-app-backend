@@ -8,6 +8,7 @@ from app.routers import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from app.routers import notification as notification_router
 
 # ✅ FastAPI 앱 초기화
 app = FastAPI()
@@ -17,16 +18,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# ✅ 프론트엔드 출처
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
-
-# ✅ CORS 미들웨어 (기본 설정)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # '*' 대신 명시적 도메인
+    allow_origins=["http://localhost:3000","http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,7 +40,8 @@ app.include_router(nearby.router)
 app.include_router(venue.router)
 app.include_router(alert.router)
 app.include_router(like.router)
-
+app.include_router(notification_router.router)
+app.include_router(notification_router.alias)
 # ✅ 루트 엔드포인트
 @app.get("/")
 def root():
