@@ -1,9 +1,9 @@
-# app/routers/performance.py
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional, List
-from datetime import datetime, date, time
-from pydantic import BaseModel
+from datetime import datetime, date
+from datetime import time as dt_time
+from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.schemas.performance import (
@@ -14,6 +14,8 @@ from app.schemas.performance import (
 )
 from app.crud import performance as performance_crud
 from app.models.user import User
+from app.models.performance import Performance
+from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm  # ✅ 추가
 from app.utils.dependency import get_current_user_optional, get_current_user
 from app.services.notify import notify_artist_followers_on_new_performance
 
@@ -64,15 +66,16 @@ def get_performance_detail(
         is_alarmed = performance_crud.is_user_alarmed_performance(db, user.id, id)
 
     like_count = performance_crud.get_performance_like_count(db, id)
+    dt_val = datetime.combine(performance.date, performance.time or dt_time(0, 0))
 
     return PerformanceDetailResponse(
         id=performance.id,
         title=performance.title,
-        date=datetime.combine(performance.date, performance.time),
+        date=dt_val,
         venueId=performance.venue.id,
         venue=performance.venue.name,
         artists=[ArtistSummary(id=a.id, name=a.name, image_url=a.image_url) for a in artists],
-        price=f"{performance.price}원",
+        price=f"{performance.price}원" if performance.price is not None else None,
         ticket_open_date=performance.ticket_open_date,
         ticket_open_time=performance.ticket_open_time,
         detailLink=performance.detail_url,
@@ -83,53 +86,123 @@ def get_performance_detail(
     )
 
 
-# ====== ✅ 공연 생성(POST) — 커밋 직후 팔로워에게 새 공연 알림 생성 ======
-
+# ====== 공연 생성 → 커밋 직후 알림 발송 ======
 class PerformanceCreate(BaseModel):
     title: str
     venue_id: int
     date: date
-    time: Optional[time] = None
+    time: Optional[dt_time] = None
     price: Optional[int] = None
     ticket_open_date: Optional[date] = None
-    ticket_open_time: Optional[time] = None
+    ticket_open_time: Optional[dt_time] = None
     detail_url: Optional[str] = None
     image_url: Optional[str] = None
-    artist_ids: List[int] = []  # 이 공연에 연결할 아티스트 id 목록
+    artist_ids: List[int] = Field(default_factory=list)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_performance(
     body: PerformanceCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),  # 인증 필요 시
+    user: User = Depends(get_current_user),
 ):
-    # 1) 공연 생성 (프로젝트 CRUD에 맞춰 호출)
+    # 1) 공연 생성 (CRUD 내부에서 commit X, flush O 가정)
     perf = performance_crud.create_performance(db, body)
 
     # 2) 아티스트 매핑
-    artist_ids = body.artist_ids or []
+    body_artist_ids = list(set(body.artist_ids or []))
     try:
-        if artist_ids:
-            performance_crud.set_performance_artists(db, perf.id, artist_ids)
-    except AttributeError:
-        # 프로젝트에 set_performance_artists가 없다면, 모델 관계를 직접 추가하는 로직을 쓰세요.
-        pass
+        if body_artist_ids and hasattr(performance_crud, "set_performance_artists"):
+            performance_crud.set_performance_artists(db, perf.id, body_artist_ids)
+    except Exception as e:
+        print(f"[perf] set_performance_artists error: {e}")
 
-    # 3) 먼저 커밋해 id/관계 확정
+    # 3) 커밋/리프레시로 관계 확정
     db.commit()
     db.refresh(perf)
 
-    # body에 없으면 관계에서 추출
-    if not artist_ids:
-        try:
-            artist_ids = [rel.artist_id for rel in getattr(perf, "artists", [])]
-        except Exception:
-            artist_ids = []
+    # 4) ORM에서 다시 읽어 최종 artist_ids 보정(견고)
+    db_artist_ids = [a.id for a in getattr(perf, "artists", [])]
+    final_artist_ids = sorted(set(body_artist_ids) | set(db_artist_ids))
 
-    # 4) ✅ 새 공연 알림 (아티스트 팔로워 대상)
-    notify_artist_followers_on_new_performance(
-        db, performance_id=perf.id, artist_ids=artist_ids
-    )
+    # 5) 새 공연 알림 발송 (실패해도 본 요청은 성공)
+    if final_artist_ids:
+        try:
+            res = notify_artist_followers_on_new_performance(
+                db, performance_id=perf.id, artist_ids=final_artist_ids
+            )
+            print(f"[perf] notify result: {res}")
+        except Exception as e:
+            print(f"[notify] new_performance_by_artist failed for perf={perf.id}: {e}")
 
     return {"id": perf.id}
+
+
+# ====== 예매 오픈 알림 토글 API ======
+
+def _ensure_perf_exists(db: Session, perf_id: int) -> Performance:
+    perf = db.query(Performance).filter(Performance.id == perf_id).first()
+    if not perf:
+        raise HTTPException(status_code=404, detail="Performance not found")
+    return perf
+
+@router.get("/{perf_id}/ticket-alarm")
+def get_ticket_alarm_status(
+    perf_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _ensure_perf_exists(db, perf_id)
+    exists = db.query(UserPerformanceTicketAlarm).filter_by(
+        user_id=user.id, performance_id=perf_id
+    ).first() is not None
+    return {"isAlarmed": exists}
+
+@router.post("/{perf_id}/ticket-alarm", status_code=status.HTTP_201_CREATED)
+def enable_ticket_alarm(
+    perf_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _ensure_perf_exists(db, perf_id)
+    # 중복 삽입 방지
+    exists = db.query(UserPerformanceTicketAlarm).filter_by(
+        user_id=user.id, performance_id=perf_id
+    ).first()
+    if not exists:
+        db.add(UserPerformanceTicketAlarm(user_id=user.id, performance_id=perf_id))
+        db.commit()
+    return {"ok": True, "isAlarmed": True}
+
+@router.delete("/{perf_id}/ticket-alarm")
+def disable_ticket_alarm(
+    perf_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _ensure_perf_exists(db, perf_id)
+    row = db.query(UserPerformanceTicketAlarm).filter_by(
+        user_id=user.id, performance_id=perf_id
+    ).first()
+    if row:
+        db.delete(row)
+        db.commit()
+    return {"ok": True, "isAlarmed": False}
+
+
+# ====== 디버그 도우미(선택) ======
+@router.get("/debug/notify/{perf_id}")
+def debug_notify(perf_id: int, db: Session = Depends(get_db)):
+    from app.models.performance_artist import PerformanceArtist
+    artist_ids = [pa.artist_id for pa in db.query(PerformanceArtist)
+                  .filter(PerformanceArtist.performance_id == perf_id).all()]
+    if not artist_ids:
+        return {"ok": False, "msg": "no artists mapped"}
+    res = notify_artist_followers_on_new_performance(db, performance_id=perf_id, artist_ids=artist_ids)
+    return {"ok": True, "artist_ids": artist_ids, **res}
+
+
+@router.get("/debug/pingdb")
+def debug_pingdb(db: Session = Depends(get_db)):
+    r = db.execute("SELECT DATABASE() AS db, @@port AS port").fetchall()
+    return [dict(x._mapping) for x in r]
