@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from datetime import date
 from app.models.performance import Performance
 from app.models.venue import Venue
+from typing import Optional, List
 
-
-def get_calendar_summary_by_month(db: Session, year: int, month: int, region: list[str] | None):
+def get_calendar_summary_by_month(db: Session, year: int, month: int, region: Optional[List[str]] = None):
     start_date = date(year, month, 1)
     end_date = date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
 
@@ -22,7 +22,7 @@ def get_calendar_summary_by_month(db: Session, year: int, month: int, region: li
     return days
 
 # app/crud/calendar.py
-def get_performances_by_date(db: Session, target_date: date, region: list[str] | None):
+def get_performances_by_date(db: Session, target_date: date, region: Optional[List[str]] = None):
     query = db.query(Performance).filter(Performance.date == target_date)
 
     if region:

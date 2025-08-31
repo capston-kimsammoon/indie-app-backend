@@ -17,6 +17,7 @@ def get_kakao_access_token(code: str) -> str:
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     if response.status_code != 200:
+        print(f"Error response: {response.text}")  # 오류 메시지 출력
         raise HTTPException(status_code=400, detail="카카오 access_token 발급 실패")
     return response.json()["access_token"]
 
