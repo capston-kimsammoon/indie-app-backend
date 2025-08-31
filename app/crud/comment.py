@@ -48,7 +48,7 @@ def create_reply(
     if parent.post_id != post_id:
         # 다른 게시글의 댓글에 답글을 붙이려는 경우 방어
         raise HTTPException(status_code=400, detail="부모 댓글의 게시글 ID가 일치하지 않습니다.")
-
+    
     comment = Comment(
         content=comment_data.content,
         post_id=post_id,
