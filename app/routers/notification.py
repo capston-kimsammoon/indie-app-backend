@@ -13,6 +13,7 @@ from app.models.notification import Notification
 router = APIRouter(prefix="/notifications", tags=["Notification"])
 alias = APIRouter(prefix="/notices", tags=["Notification"])
 alias.include_router(router)
+
 # ====== Schemas ======
 class NotificationRead(BaseModel):
     id: int
@@ -27,22 +28,30 @@ class NotificationRead(BaseModel):
     class Config:
         from_attributes = True
 
+# JSON 파싱 함수 (오류 처리 추가)
 def _parse_payload(payload_json: Optional[str]) -> Optional[Union[Dict[str, Any], List[Any]]]:
     if not payload_json:
         return None
     try:
         return json.loads(payload_json)
-    except Exception:
-        return None
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON format in payload")
 
 # ====== Routes ======
 @router.get("", response_model=List[NotificationRead])
-def list_notifications(db: Session = Depends(get_db), user=Depends(get_current_user)):
+def list_notifications(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+    page: int = Query(1, ge=1),  # 페이지 번호 (1 이상)
+    size: int = Query(100, le=100),  # 한 페이지에 표시할 알림 개수 (최대 100)
+):
+    skip = (page - 1) * size  # 페이징 처리
     rows: List[Notification] = (
         db.query(Notification)
         .filter(Notification.user_id == user.id)
         .order_by(Notification.created_at.desc())
-        .limit(100)
+        .offset(skip)
+        .limit(size)
         .all()
     )
     return [
@@ -76,7 +85,6 @@ def remove(nid: int, db: Session = Depends(get_db), user=Depends(get_current_use
     db.commit()
     return {"ok": True}
 
-
 # === 스케줄/리컨실/강제 트리거 ===
 @router.post("/dispatch-due")
 def dispatch_due(db: Session = Depends(get_db)):
@@ -98,20 +106,12 @@ def force_new_performance(
     aid_list = [int(x) for x in artist_ids.split(",") if x.strip()]
     return notify_artist_followers_on_new_performance(db, performance_id=perf_id, artist_ids=aid_list)
 
-@alias.post("/notifications/force-new-performance")
-def force_new_performance_alias(
-    perf_id: int = Query(...),
-    artist_ids: str = Query(...),
-    db: Session = Depends(get_db),
-):
-    return force_new_performance(perf_id=perf_id, artist_ids=artist_ids, db=db)
-
 @router.post("/dispatch-ticket-open")
 def dispatch_ticket_open_now(
     force: bool = Query(False, description="시간 조건 무시하고 강제 발송"),
-    pretend_kst: str | None = Query(
+    pretend_kst: Optional[str] = Query(
         None,
-        description="예: 2025-08-23T12:01:00  (이 시간이 현재라고 가정)",
+        description="예: 2025-08-23T12:01:00 (이 시간이 현재라고 가정)",
     ),
     db: Session = Depends(get_db),
 ):
