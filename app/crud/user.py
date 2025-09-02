@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate
 from typing import Dict
-from typing import Optional
 
-def get_user_by_kakao_id(db: Session, kakao_id: int) -> Optional[User]:
+# Kakao 사용자 ID로 기존 회원 조회
+def get_user_by_kakao_id(db: Session, kakao_id: int) -> User | None:
     return db.query(User).filter(User.kakao_id == kakao_id).first()
 
 # 새 사용자 정보를 기반으로 회원 생성 및 DB 저장
