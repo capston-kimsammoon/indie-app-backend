@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
 from datetime import datetime, time as dt_time, timezone, timedelta
-from typing import Optional
+
 from app.models.artist import Artist
 from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
@@ -14,7 +14,7 @@ from app.utils.text_utils import clean_title
 KST = timezone(timedelta(hours=9))  # 서비스 TZ가 KST라면 사용
 
 # 아티스트 목록 조회 (페이지네이션 + N+1 제거)
-def get_artist_list(db: Session, page: int, size: int, user_id: Optional[int] = None):
+def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
     q = db.query(Artist)
     total = q.count()
     offset = (page - 1) * size
@@ -46,7 +46,7 @@ def get_artist_list(db: Session, page: int, size: int, user_id: Optional[int] = 
 
 
 # 아티스트 상세 조회 (시간 NULL 안전 + 정렬 + 알림 여부 포함)
-def get_artist_detail(db: Session, artist_id: int, user_id: Optional[int] = None):
+def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
     artist = db.query(Artist).filter_by(id=artist_id).first()
     if not artist:
         return None
