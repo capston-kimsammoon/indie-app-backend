@@ -25,3 +25,6 @@ class Performance(Base):
     artists = relationship("Artist", secondary="performance_artist", back_populates="performances")
     favorite_users = relationship("User", secondary="user_favorite_performance", back_populates="favorite_performances")
     ticket_alarm_users = relationship("User", secondary="user_performance_ticketalarm", back_populates="ticket_alarm_performances")
+    # add
+    reviews = relationship("Review", back_populates="performance", cascade="all, delete-orphan")
+    stamps = relationship("Stamp", back_populates="performance", cascade="all, delete-orphan")
