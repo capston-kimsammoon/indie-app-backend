@@ -1,5 +1,4 @@
 # models/venue.py
-
 from sqlalchemy import Column, Integer, String, Float
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -18,3 +17,8 @@ class Venue(Base):
 
     performances = relationship("Performance", back_populates="venue")
 
+    reviews = relationship(
+        "Review",
+        back_populates="venue",
+        cascade="all, delete-orphan",
+    )

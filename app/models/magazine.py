@@ -12,4 +12,10 @@ class Magazine(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    images = relationship("MagazineImage", back_populates="magazine", cascade="all, delete-orphan")
+     # ✅ 본문은 blocks로
+    blocks = relationship(
+        "MagazineBlock",
+        back_populates="magazine",
+        order_by="MagazineBlock.order",
+        cascade="all, delete-orphan"
+    )

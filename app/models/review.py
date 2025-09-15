@@ -1,21 +1,17 @@
-# models/review.py
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text
+# app/models/review.py
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.database import Base
-import datetime
 
 class Review(Base):
     __tablename__ = "review"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-    performance_id = Column(Integer, ForeignKey("performance.id"), nullable=False)
-    title = Column(String(200), nullable=False)
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    venue_id = Column(Integer, ForeignKey("venue.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
-    is_reported = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
 
-    user = relationship("User", back_populates="reviews")
-    performance = relationship("Performance", back_populates="reviews")
-    images = relationship("ReviewImage", back_populates="review", cascade="all, delete-orphan")
-    likes = relationship("ReviewLike", back_populates="review", cascade="all, delete-orphan")
+    # 선택: back_populates는 Venue 쪽만 둬도 충분
+    user = relationship("User")
+    venue = relationship("Venue", back_populates="reviews")

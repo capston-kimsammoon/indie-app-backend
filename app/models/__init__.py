@@ -1,10 +1,4 @@
-# import importlib
-# import pkgutil
-# from app.database import Base
-
-# for loader, name, is_pkg in pkgutil.iter_modules(__path__):
-#     importlib.import_module(f"{__name__}.{name}")
-
+# app/models/__init__.py
 from app.database import Base
 
 from .artist import Artist
@@ -22,3 +16,11 @@ from .user_performance_open_alarm import UserPerformanceOpenAlarm
 from .user_performance_ticketalarm import UserPerformanceTicketAlarm
 from .user import User
 from .venue import Venue
+
+# ✅ 공연장 리뷰만 유지 (공연 리뷰 관련 서브테이블 제거)
+from .review import Review
+
+# 그대로 유지
+from .stamp import Stamp
+from .magazine import Magazine
+from .magazine_block import MagazineBlock   
