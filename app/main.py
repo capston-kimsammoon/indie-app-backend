@@ -9,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from app.database import SessionLocal
 from app.routers import (
     post, auth, user, search, nearby, venue, alert, like,
-    performance, performance_home, calender, artist, comment
+    performance, performance_home, calender, artist, comment,
+    magazine,  # ✅ 매거진 라우터 추가
 )
 from app.routers import notification as notification_router
 
@@ -44,7 +45,7 @@ app.include_router(nearby.router)
 app.include_router(venue.router)
 app.include_router(alert.router)
 app.include_router(like.router)
-
+app.include_router(magazine.router)  # ✅ 매거진 라우터 등록
 # ✅ 알림 라우터 (신규 + 레거시 호환 둘 다)
 app.include_router(notification_router.router)   # /notifications/*
 app.include_router(notification_router.alias)    # /notices/notifications/*
