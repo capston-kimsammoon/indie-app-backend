@@ -1,20 +1,21 @@
-# app/models/stamp.py
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, PrimaryKeyConstraint
+# models/stamp.py
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 import datetime
+from datetime import datetime, timezone
 
 class Stamp(Base):
     __tablename__ = "stamp"
 
-    user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
-    performance_id = Column(Integer, ForeignKey("performance.id"), primary_key=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)  
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    performance_id = Column(Integer, ForeignKey("performance.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
 
     __table_args__ = (
-        PrimaryKeyConstraint("user_id", "performance_id"),
+        UniqueConstraint("user_id", "performance_id", name="unique_user_performance"),
     )
 
-    # ✅ Performance/User 와의 양방향 관계 (back_populates 이름을 다른 모델과 '정확히' 맞춤)
     user = relationship("User", back_populates="stamps")
     performance = relationship("Performance", back_populates="stamps")

@@ -6,12 +6,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.database import SessionLocal
+from app.database import SessionLocal, Base, engine
 from app.routers import (
     post, auth, user, search, nearby, venue, alert, like,
-    performance, performance_home, calender, artist, comment
+    performance, performance_home, calender, artist, comment, review, stamp
 )
+
+
 from app.routers import notification as notification_router
+import app.models
 
 # ✅ FastAPI 앱 초기화
 app = FastAPI()
@@ -44,14 +47,19 @@ app.include_router(nearby.router)
 app.include_router(venue.router)
 app.include_router(alert.router)
 app.include_router(like.router)
+app.include_router(review.router)
+app.include_router(stamp.router)
+
 
 # ✅ 알림 라우터 (신규 + 레거시 호환 둘 다)
 app.include_router(notification_router.router)   # /notifications/*
 app.include_router(notification_router.alias)    # /notices/notifications/*
 
+
 # ✅ 루트 엔드포인트
 @app.get("/")
 def root():
+   
     return {"message": "MySQL 테이블 생성 완료 !!"}
 
 
