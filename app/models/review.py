@@ -12,6 +12,8 @@ class Review(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
-    # 선택: back_populates는 Venue 쪽만 둬도 충분
     user = relationship("User", back_populates="reviews")
     venue = relationship("Venue", back_populates="reviews")
+    images = relationship("ReviewImage", back_populates="review", cascade="all, delete-orphan") 
+    likes  = relationship("ReviewLike",  back_populates="review", cascade="all, delete-orphan")
+
