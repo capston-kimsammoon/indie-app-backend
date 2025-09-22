@@ -1,3 +1,4 @@
+# app/main.py
 import os
 import asyncio
 from contextlib import suppress
@@ -13,6 +14,7 @@ from app.routers import (
     magazine,  # ✅ 매거진 라우터 추가
 )
 from app.routers import notification as notification_router
+from app.routers import mood as mood_router  # ✅ [ADD] mood 라우터 임포트
 
 # ✅ FastAPI 앱 초기화
 app = FastAPI()
@@ -31,11 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ 라우터 등록
+# ✅ 라우터 등록 (⚠️ 정적 경로를 먼저: /performance/mood → /performance/{id} 충돌 방지)
+app.include_router(mood_router.router)                          # /mood/...
+app.include_router(mood_router.router, prefix="/performance")   # /performance/mood/...
+
 app.include_router(post.router)
 app.include_router(performance_home.router)
 app.include_router(calender.router)
-app.include_router(performance.router)
+app.include_router(performance.router)          # ← 파라미터 라우트는 mood 별칭 뒤에 등록
 app.include_router(artist.router)
 app.include_router(comment.router)
 app.include_router(auth.router)
@@ -45,23 +50,17 @@ app.include_router(nearby.router)
 app.include_router(venue.router)
 app.include_router(alert.router)
 app.include_router(like.router)
-app.include_router(magazine.router)  # ✅ 매거진 라우터 등록
-# ✅ 알림 라우터 (신규 + 레거시 호환 둘 다)
-app.include_router(notification_router.router)   # /notifications/*
-app.include_router(notification_router.alias)    # /notices/notifications/*
+app.include_router(magazine.router)             # ✅ 매거진 라우터 등록
+app.include_router(notification_router.router)  # /notifications/*
+app.include_router(notification_router.alias)   # /notices/notifications/*
 
 # ✅ 루트 엔드포인트
 @app.get("/")
 def root():
     return {"message": "MySQL 테이블 생성 완료 !!"}
 
-
 # === 백그라운드 루프: SQL 직삽도 자동 반영 ===
 async def _loop_reconcile_new_perfs():
-    """
-    DB에 직접 INSERT한 공연/매핑을 보정해서
-    'new_performance_by_artist' 알림을 자동 생성.
-    """
     from app.services.notify import reconcile_new_performance_notifications
     while True:
         with suppress(Exception):
@@ -73,11 +72,7 @@ async def _loop_reconcile_new_perfs():
                 db.close()
         await asyncio.sleep(60)  # 1분마다
 
-
 async def _loop_ticket_open():
-    """
-    예매오픈 D-1 12:00(KST) 도달분 자동 발송.
-    """
     from app.services.notify import dispatch_scheduled_notifications
     while True:
         with suppress(Exception):
@@ -87,7 +82,6 @@ async def _loop_ticket_open():
             finally:
                 db.close()
         await asyncio.sleep(60)  # 1분마다
-
 
 @app.on_event("startup")
 async def _startup_loops():
