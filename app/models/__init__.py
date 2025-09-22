@@ -1,5 +1,7 @@
 # app/models/__init__.py
 from app.database import Base
+from .mood import Mood
+from .mood import MoodRecommendation
 
 from .artist import Artist
 from .comment import Comment
