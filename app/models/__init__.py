@@ -17,7 +17,10 @@ from .user_performance_ticketalarm import UserPerformanceTicketAlarm
 from .user import User
 from .venue import Venue
 
+
 # ✅ 공연장 리뷰만 유지 (공연 리뷰 관련 서브테이블 제거)
+from .review_like import ReviewLike
+from .review_image import ReviewImage
 from .review import Review
 
 # 그대로 유지
