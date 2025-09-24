@@ -7,13 +7,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.database import SessionLocal
+from app.database import SessionLocal, Base, engine
 from app.routers import (
     post, auth, user, search, nearby, venue, alert, like,
     performance, performance_home, calender, artist, comment,
-    magazine,  # ✅ 매거진 라우터 추가
+    magazine,
 )
+
+
 from app.routers import notification as notification_router
+import app.models
 from app.routers import mood as mood_router  # ✅ [ADD] mood 라우터 임포트
 
 # ✅ FastAPI 앱 초기화
@@ -50,13 +53,18 @@ app.include_router(nearby.router)
 app.include_router(venue.router)
 app.include_router(alert.router)
 app.include_router(like.router)
-app.include_router(magazine.router)             # ✅ 매거진 라우터 등록
-app.include_router(notification_router.router)  # /notifications/*
-app.include_router(notification_router.alias)   # /notices/notifications/*
+app.include_router(review.router)
+app.include_router(stamp.router)
+app.include_router(notification_router.router)   
+app.include_router(notification_router.alias)   
+app.include_router(magazine.router)           
+app.include_router(notification_router.router) 
+app.include_router(notification_router.alias)   
 
 # ✅ 루트 엔드포인트
 @app.get("/")
 def root():
+   
     return {"message": "MySQL 테이블 생성 완료 !!"}
 
 # === 백그라운드 루프: SQL 직삽도 자동 반영 ===
