@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="yebindb@localhost" uuid="50bd96b4-5c5a-4e9c-bcc8-254bbbac18db">
-      <driver-ref>mysql.8</driver-ref>
-      <synchronize>true</synchronize>
-      <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>
-      <jdbc-url>jdbc:mysql://localhost:3306/yebindb</jdbc-url>
-      <working-dir>$ProjectFileDir$</working-dir>
-    </data-source>
     <data-source source="LOCAL" name="indie_app@localhost" uuid="0eb6660b-348e-4c2a-b634-08d01fbaf5fb">
       <driver-ref>mysql.8</driver-ref>
       <synchronize>true</synchronize>

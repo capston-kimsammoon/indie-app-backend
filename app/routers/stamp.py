@@ -50,9 +50,9 @@ def get_available_stamps(
         AvailableStampResponse(
             id=p.id,
             performance_id=p.id,
-            posterUrl=getattr(p, "poster_url", None),
+            posterUrl=p.image_url,
             venueImageUrl=(p.venue.image_url if p.venue else None),
-            place=(p.venue.name if p.venue else "공연장"),
+            venue=(p.venue.name if p.venue else "공연장"),
             title=p.title,
             date=p.date,
             is_collected=(p.id in already_stamped_ids),
@@ -88,7 +88,7 @@ def get_collected_stamps(
             models.Performance.date <= end_date,
         )
 
-    return query.all()
+    return [StampResponse.from_orm(stamp) for stamp in query.all()]
 
 # 스탬프 수집
 @router.post("/collect", response_model=StampResponse)
@@ -112,7 +112,7 @@ def collect_stamp(
     db.add(new_stamp)
     db.commit()
     db.refresh(new_stamp)
-    return new_stamp
+    return StampResponse.from_orm(new_stamp)
 
 # 스탬프 상세
 @router.get("/{stamp_id}", response_model=StampResponse)
@@ -129,4 +129,4 @@ def get_stamp_detail(
     )
     if not stamp:
         raise HTTPException(status_code=404, detail="Stamp not found")
-    return stamp
+    return StampResponse.from_orm(stamp)
