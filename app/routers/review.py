@@ -1,22 +1,22 @@
-# app/routers/review.py
 from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import outerjoin
+from sqlalchemy import func, case
 from typing import Any, Optional
 
 from app.database import get_db
 from app.models.venue import Venue
 from app.models.review import Review
 from app.models.user import User
+from app.models.review_like import ReviewLike
 from app.schemas.review import ReviewListResponse, ReviewItem, ReviewCreate
-from app.utils.dependency import get_current_user
+from app.utils.dependency import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/venue", tags=["Review"])
 
 def to_abs(base: str, u: Optional[str]) -> Optional[str]:
     if not u:
         return None
-    s = str(u).strip().strip('"').strip()  # 여분의 따옴표/공백 제거
+    s = str(u).strip().strip('"').strip()
     if not s:
         return None
     if s.startswith(("http://","https://","data:")):
@@ -32,45 +32,73 @@ def list_venue_reviews(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    # 로그인은 선택: 있으면 내 좋아요 여부 계산, 없으면 False
+    current_user = Depends(get_current_user_optional),
 ):
     # 공연장 존재 확인
     if not db.query(Venue.id).filter(Venue.id == venue_id).first():
         raise HTTPException(status_code=404, detail="Venue not found")
 
-    # ✅ 관계객체 대신 컬럼 조인으로 직접 뽑기 (LEFT OUTER JOIN)
     base = str(request.base_url)
+    uid = getattr(current_user, "id", None) if current_user is not None else None
+
+    # 좋아요 수 집계 서브쿼리
+    sq_count = (
+        db.query(
+            ReviewLike.review_id.label("rid"),
+            func.count(ReviewLike.id).label("like_count"),
+        )
+        .group_by(ReviewLike.review_id)
+        .subquery()
+    )
+
+    # 내가 좋아요한 리뷰 서브쿼리 (로그인 시에만)
+    sq_mine = (
+        db.query(ReviewLike.review_id.label("rid"))
+        .filter(ReviewLike.user_id == uid)
+        .subquery()
+        if uid
+        else None
+    )
+
+    # 본문 + 작성자 + like_count + is_liked
     q = (
         db.query(
             Review,
             User.nickname.label("u_nickname"),
             User.profile_url.label("u_profile"),
+            func.coalesce(sq_count.c.like_count, 0).label("like_count"),
+            (
+                case((sq_mine.c.rid.isnot(None), True), else_=False)
+                if sq_mine is not None
+                else func.false()
+            ).label("is_liked"),
         )
         .select_from(Review)
         .outerjoin(User, User.id == Review.user_id)
+        .outerjoin(sq_count, sq_count.c.rid == Review.id)
         .filter(Review.venue_id == venue_id)
         .order_by(Review.created_at.desc(), Review.id.desc())
     )
+    if sq_mine is not None:
+        q = q.outerjoin(sq_mine, sq_mine.c.rid == Review.id)
 
     total = q.count()
     rows = q.offset((page - 1) * size).limit(size).all()
 
     items: list[ReviewItem] = []
-    for rev, u_nickname, u_profile in rows:
-        author = u_nickname or "익명"
-        profile_url = to_abs(base, u_profile)
-        print("⭐⭐ : ", profile_url)
+    for rev, u_nickname, u_profile, like_count, is_liked in rows:
         items.append(
             ReviewItem(
                 id=rev.id,
-                author=author,
+                author=u_nickname or "익명",
                 content=rev.content,
                 created_at=rev.created_at.isoformat() if rev.created_at else "",
-                profile_url=profile_url,  # ← 컬럼에서 바로 보정한 값
+                profile_url=to_abs(base, u_profile),
+                like_count=int(like_count or 0),
+                is_liked=bool(is_liked),
             )
         )
-   
-
-    
 
     return ReviewListResponse(total=total, items=items)
 
@@ -80,12 +108,12 @@ def create_venue_review(
     payload: ReviewCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user),
+    current_user: Any = Depends(get_current_user),  # 로그인 필수
 ):
     if not db.query(Venue.id).filter(Venue.id == venue_id).first():
         raise HTTPException(status_code=404, detail="Venue not found")
 
-    # current_user에서 바로 추출
+    # 작성자/아바타
     author = (
         getattr(current_user, "nickname", None)
         or (current_user.get("nickname") if isinstance(current_user, dict) else None)
@@ -108,10 +136,13 @@ def create_venue_review(
     db.commit()
     db.refresh(rev)
 
+    # 새 리뷰는 좋아요 0, is_liked=False로 반환
     return ReviewItem(
         id=rev.id,
         author=author,
         content=rev.content,
         created_at=rev.created_at.isoformat() if rev.created_at else "",
         profile_url=profile_url,
+        like_count=0,
+        is_liked=False,
     )
