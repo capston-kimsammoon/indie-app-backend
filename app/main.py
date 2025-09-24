@@ -100,3 +100,17 @@ async def _startup_loops():
     # 서버 켜지면 자동으로 두 루프 시작
     asyncio.create_task(_loop_reconcile_new_perfs())
     asyncio.create_task(_loop_ticket_open())
+
+
+
+from sqlalchemy import text
+
+@app.get("/__debug/db")
+def __debug_db():
+    with SessionLocal() as db:
+        url = str(engine.url)
+        try:
+            cnt = db.execute(text("SELECT COUNT(*) FROM mood")).scalar()  # mood 행 수
+        except Exception as e:
+            cnt = f"ERROR: {e.__class__.__name__}: {e}"
+        return {"engine_url": url, "mood_count": cnt}
