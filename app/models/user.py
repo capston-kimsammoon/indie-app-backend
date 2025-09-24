@@ -20,6 +20,7 @@ class User(Base):
     ticket_alarm_performances = relationship("Performance", secondary="user_performance_ticketalarm", back_populates="ticket_alarm_users")
     # add
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
+    review_likes = relationship("ReviewLike", back_populates="user", cascade="all, delete-orphan")
     stamps = relationship("Stamp", back_populates="user", cascade="all, delete-orphan")
 
 
