@@ -27,3 +27,9 @@ class Performance(Base):
     ticket_alarm_users = relationship("User", secondary="user_performance_ticketalarm", back_populates="ticket_alarm_performances")
     # add
     stamps = relationship("Stamp", back_populates="performance", cascade="all, delete-orphan")
+    # mood_recommendation과의 관계 (추천 무드용)
+    mood_recommendations = relationship(
+        "MoodRecommendation",
+        back_populates="performance",
+        cascade="all, delete-orphan"
+    )
