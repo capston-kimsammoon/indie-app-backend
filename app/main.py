@@ -9,8 +9,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import SessionLocal, Base, engine
 from app.routers import (
-    post, auth, user, search, nearby, venue, alert, like,
-    performance, performance_home, calender, artist, comment,
+    auth, user, search, nearby, venue, alert, like,
+    performance, performance_home, calender, artist,
     magazine, review, stamp
 )
 
@@ -40,12 +40,10 @@ app.add_middleware(
 app.include_router(mood_router.router)                          # /mood/...
 app.include_router(mood_router.router, prefix="/performance")   # /performance/mood/...
 
-app.include_router(post.router)
 app.include_router(performance_home.router)
 app.include_router(calender.router)
 app.include_router(performance.router)          # ← 파라미터 라우트는 mood 별칭 뒤에 등록
 app.include_router(artist.router)
-app.include_router(comment.router)
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(search.router)

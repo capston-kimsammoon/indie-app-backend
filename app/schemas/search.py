@@ -40,16 +40,3 @@ class ArtistSearchResponse(BaseModel):
     page: int
     totalPages: int
     artists: List[ArtistSearchItem]
-
-# 게시물 검색 결과에서 개별 게시물 정보 담는 모델
-class PostSearchItem(BaseModel):
-    id: int
-    title: str
-    author: str
-    created_at: datetime
-
-# 게시물 검색 결과 응답 모델
-class PostSearchResponse(BaseModel):
-    page: int
-    totalPages: int
-    posts: List[PostSearchItem]

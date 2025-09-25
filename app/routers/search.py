@@ -7,7 +7,6 @@ from app.models.performance import Performance
 from app.models.venue import Venue
 from app.models.user import User
 from app.models.artist import Artist
-from app.models.post import Post
 from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
 from app.schemas import search as search_schema
@@ -87,38 +86,3 @@ def search_artist(
         artists=result
     )
 
-# 📝 자유게시판 검색
-@router.get("/post", response_model=search_schema.PostSearchResponse)
-def search_post(
-    keyword: str,
-    page: int = Query(1, ge=1),
-    size: int = Query(10, ge=1),
-    db: Session = Depends(get_db)
-):
-    skip = (page - 1) * size
-
-    # 🔧 제목 또는 본문에서 키워드 검색 (둘 다 가능하게)
-    post_query = db.query(Post).filter(
-        or_(
-            Post.title.ilike(f"%{keyword}%"),
-            Post.content.ilike(f"%{keyword}%")
-        )
-    )
-
-    total = post_query.count()
-    posts = post_query.offset(skip).limit(size).all()
-
-    result = [
-        search_schema.PostSearchItem(
-            id=p.id,
-            title=p.title,
-            author=p.user.nickname,
-            created_at=p.created_at.date()
-        ) for p in posts
-    ]
-
-    return search_schema.PostSearchResponse(
-        page=page,
-        totalPages=(total + size - 1) // size,
-        posts=result
-    )
