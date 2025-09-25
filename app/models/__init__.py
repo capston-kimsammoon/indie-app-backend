@@ -4,13 +4,9 @@ from .mood import Mood
 from .mood import MoodRecommendation
 
 from .artist import Artist
-from .comment import Comment
 from .notification import Notification
 from .performance_artist import PerformanceArtist
 from .performance import Performance
-from .post_image import PostImage
-from .post_like import PostLike
-from .post import Post
 from .user_artist_ticketalarm import UserArtistTicketAlarm
 from .user_favorite_artist import UserFavoriteArtist
 from .user_favorite_performance import UserFavoritePerformance

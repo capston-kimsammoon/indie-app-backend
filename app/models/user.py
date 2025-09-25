@@ -13,8 +13,6 @@ class User(Base):
     alarm_enabled = Column(Boolean, nullable=False)
     location_enabled = Column(Boolean, nullable=False)
 
-    posts = relationship("Post", back_populates="user")
-    comments = relationship("Comment", back_populates="user")
     favorite_artists = relationship("Artist", secondary="user_favorite_artist", back_populates="favorite_users")
     favorite_performances = relationship("Performance", secondary="user_favorite_performance", back_populates="favorite_users")
     ticket_alarm_performances = relationship("Performance", secondary="user_performance_ticketalarm", back_populates="ticket_alarm_users")
