@@ -1,34 +1,40 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+# app/database.py
 import os
-from dotenv import load_dotenv
-from app.config import settings 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from app.config import settings  # pydantic-settings (이미 사용 중)
 
-load_dotenv()
-
-DB_HOST = settings.DB_HOST
-DB_PORT = settings.DB_PORT
-DB_NAME = settings.DB_NAME
+# .env는 로컬에서만 필요하고, Cloud Run에선 환경변수로 들어옵니다.
 DB_USER = settings.DB_USER
 DB_PASSWORD = settings.DB_PASSWORD
+DB_NAME = settings.DB_NAME
 
-print(f"DB_HOST: {DB_HOST}")
+# 배포 시에만 설정할 값 (gcloud --set-env-vars 로 주입)
+INSTANCE = os.getenv("INSTANCE_CONNECTION_NAME")
 
+# 로컬 기본값 (.env)
+DB_HOST = settings.DB_HOST
+DB_PORT = settings.DB_PORT  # 문자열이어도 SQLAlchemy가 처리함
 
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+if INSTANCE:
+    # ✅ Cloud Run: Cloud SQL 유닉스 소켓
+    DATABASE_URL = (
+        f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@/{DB_NAME}"
+        f"?unix_socket=/cloudsql/{INSTANCE}&charset=utf8mb4"
+    )
+else:
+    # ✅ Local: Cloud SQL 프록시(TCP)
+    DATABASE_URL = (
+        f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        f"?charset=utf8mb4"
+    )
 
-# SQLAlchemy 엔진 생성c
-engine = create_engine(DATABASE_URL, echo=True) # sql 동작 보고 싶으면 echo True
+# 운영에선 echo=False 권장 (원하면 True)
+engine = create_engine(DATABASE_URL, echo=False)
 
-# 세션 생성
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# 모델의 Base 클래스
 Base = declarative_base()
 
-
-# DB 세션 의존성 주입용 함수
 def get_db():
     db = SessionLocal()
     try:

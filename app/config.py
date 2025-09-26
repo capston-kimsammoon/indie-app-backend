@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
+    INSTANCE_CONNECTION_NAME: str | None = None   # ✅ 이 줄 추가
 
     class Config:
         # .env 파일 경로 명시적 설정
@@ -23,4 +24,3 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your_default_secret_key")
