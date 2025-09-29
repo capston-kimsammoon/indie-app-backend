@@ -1,34 +1,40 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+# app/database.py
+from __future__ import annotations
 import os
-from dotenv import load_dotenv
-from app.config import settings 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from app.config import settings
 
-load_dotenv()
-
-DB_HOST = settings.DB_HOST
-DB_PORT = settings.DB_PORT
-DB_NAME = settings.DB_NAME
 DB_USER = settings.DB_USER
 DB_PASSWORD = settings.DB_PASSWORD
+DB_NAME = settings.DB_NAME
+INSTANCE = settings.INSTANCE_CONNECTION_NAME  # 배포 환경에서만 설정
+DB_HOST = settings.DB_HOST
+DB_PORT = int(getattr(settings, "DB_PORT", 3306))
 
-print(f"DB_HOST: {DB_HOST}")
+if INSTANCE:
+    # Cloud Run: Cloud SQL 유닉스 소켓
+    DATABASE_URL = (
+        f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@/{DB_NAME}"
+        f"?unix_socket=/cloudsql/{INSTANCE}&charset=utf8mb4"
+    )
+else:
+    # 로컬: Cloud SQL Proxy(TCP)
+    DATABASE_URL = (
+        f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        f"?charset=utf8mb4"
+    )
 
-
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
-
-# SQLAlchemy 엔진 생성c
-engine = create_engine(DATABASE_URL, echo=True) # sql 동작 보고 싶으면 echo True
-
-# 세션 생성
+# 커넥션 풀 설정(안정성)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = Base = declarative_base()
 
-# 모델의 Base 클래스
-Base = declarative_base()
-
-
-# DB 세션 의존성 주입용 함수
 def get_db():
     db = SessionLocal()
     try:
