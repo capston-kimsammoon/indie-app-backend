@@ -1,7 +1,9 @@
+# app/routers/nearby.py
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
-import datetime
+import datetime, pytz
 
 # 의존성
 from app.database import get_db
@@ -49,7 +51,9 @@ def get_venue_performances(
     after: str = Query(None),
     db: Session = Depends(get_db)
 ):
-    after_time = datetime.datetime.fromisoformat(after) if after else datetime.datetime.utcnow()
+    kst = pytz.timezone('Asia/Seoul')
+    after_time = datetime.datetime.fromisoformat(after) if after else datetime.datetime.now(kst)
+
     return nearby_crud.get_performances_by_venue(db, venue_id, after_time)
 
 
