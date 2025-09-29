@@ -1,3 +1,5 @@
+#app/schemas/naerby.py
+
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -18,14 +20,21 @@ class PerformanceBoundsRequest(BaseModel):
 # 공연 요약 정보 (장소별 공연 리스트에 포함되는 간략 정보)
 class PerformanceSummary(BaseModel):
     id: int
+    title: Optional[str] = None
     time: str
     image_url: Optional[str] = None
+    address: Optional[str] = None
 
 # 공연장별 예정 공연 응답 모델 (지도 위 공연장 클릭 시 사용)
 class NearbyPerformanceResponse(BaseModel):
     venue_id: int
     name: str
     performance: List[PerformanceSummary]
+
+    address: Optional[str] = None
+    image_url: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 # 사용자 현재 위치 좌표 요청 모델
 class LocationRequest(BaseModel):

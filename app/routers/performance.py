@@ -78,6 +78,7 @@ def get_performance_detail(
         price=f"{performance.price}원" if performance.price is not None else None,
         ticket_open_date=performance.ticket_open_date,
         ticket_open_time=performance.ticket_open_time,
+        shortcode=performance.shortcode,
         detailLink=performance.detail_url,
         posterUrl=performance.image_url,
         likeCount=like_count,

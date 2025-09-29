@@ -5,7 +5,7 @@ from app.models.venue import Venue
 from app.models.performance import Performance
 from app.models.review import Review
 from app.schemas.venue import VenueListResponse, VenueListItem, VenueDetailResponse, VenuePerformanceItem
-from app.schemas.review import ReviewListResponse, ReviewItem
+
 from app.crud import venue as venue_crud
 from typing import Optional, List, Union
 from sqlalchemy import or_
@@ -78,6 +78,19 @@ def get_venue_detail(
         ) for p in upcoming
     ]
 
+    past = venue_crud.get_past_performances_by_venue(db, venue_id)
+
+    past_performances = [
+    VenuePerformanceItem(
+        id=p.id,
+        title=p.title,
+        date=f"{p.date}T{str(p.time)[:5] if p.time else '00:00'}",
+        image_url=p.image_url
+    )
+    for p in past
+    ]
+
+    #print(f"[VENUE {venue_id}] upcoming={len(upcoming_performances)} past={len(past_performances)}")
     return VenueDetailResponse(
         id=venue.id,
         name=venue.name,
@@ -86,50 +99,7 @@ def get_venue_detail(
         address=venue.address,
         latitude=venue.latitude,
         longitude=venue.longitude,
-        upcomingPerformance=upcoming_performances
+        upcomingPerformance=upcoming_performances,
+        pastPerformance=past_performances
     )
 
-
-@router.get("/{venue_id}/review", response_model=ReviewListResponse)
-def list_venue_reviews(
-    venue_id: int,
-    page: int = Query(1, ge=1),
-    size: int = Query(10, ge=1, le=50),
-    db: Session = Depends(get_db),
-):
-    # 존재 체크(선택): 공연장 없으면 404
-    venue_exists = db.query(Venue.id).filter(Venue.id == venue_id).first()
-    if not venue_exists:
-        raise HTTPException(status_code=404, detail="Venue not found")
-
-    base_q = (
-        db.query(Review)
-        .filter(Review.venue_id == venue_id)
-        .order_by(Review.created_at.desc(), Review.id.desc())
-    )
-
-    total = base_q.count()
-    rows = (
-        base_q.options(joinedload(Review.user))
-        .offset((page - 1) * size)
-        .limit(size)
-        .all()
-    )
-
-    items = []
-    for r in rows:
-        author = "익명"
-        # User.nickname(혹은 name) 사용 — 프로젝트 스키마에 맞춰 필드명 조정
-        if getattr(r, "user", None):
-            author = getattr(r.user, "nickname", None) or getattr(r.user, "name", None) or "익명"
-
-        items.append(
-            ReviewItem(
-                id=r.id,
-                author=author,
-                content=r.content,
-                created_at=r.created_at.isoformat() if r.created_at else "",
-            )
-        )
-
-    return ReviewListResponse(total=total, items=items)
