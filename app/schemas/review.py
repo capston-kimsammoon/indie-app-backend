@@ -3,10 +3,15 @@ from __future__ import annotations
 
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ---------- 공통 서브 스키마 ----------
+
+class ReviewCreateIn(BaseModel):
+    content: str = Field(min_length=1, max_length=300)
+    image_urls: list[str] = Field(default_factory=list)  # 공개 버킷 public_url 목록
+
 class ReviewImageOut(BaseModel):
     image_url: Optional[str] = None
 

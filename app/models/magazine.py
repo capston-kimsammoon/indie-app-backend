@@ -12,7 +12,7 @@ class Magazine(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-     # ✅ 본문은 blocks로
+
     blocks = relationship(
         "MagazineBlock",
         back_populates="magazine",

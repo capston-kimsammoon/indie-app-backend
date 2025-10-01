@@ -10,7 +10,7 @@ import datetime, pytz
 
 # 반경 내 공연장 목록 조회
 def get_nearby_venues(db: Session, lat: float, lng: float, radius_km: float):
-    # Haversine 공식 (거리 계산 공식)
+    
     earth_radius_km = 6371.0
 
     lat_rad = radians(lat)
@@ -68,7 +68,7 @@ def get_performances_in_bounds(db: Session, req):
 
     return list(venue_dict.values())
 
-# 특정 공연장의 YYYY-MM-DDTHH:MM:SS 시각 이후 예정 공연 목록 조회
+# 특정 공연장의 현재 시각 이후 예정 공연 목록 조회
 def get_performances_by_venue(db: Session, venue_id: int, after: datetime):
     after_date = after.date()
     after_time = after.time()

@@ -21,7 +21,6 @@ def get_calendar_summary_by_month(db: Session, year: int, month: int, region: li
     days = sorted({d.date.day for d in result})
     return days
 
-# app/crud/calendar.py
 def get_performances_by_date(db: Session, target_date: date, region: list[str] | None):
     query = db.query(Performance).filter(Performance.date == target_date)
 

@@ -16,7 +16,7 @@ class User(Base):
     favorite_artists = relationship("Artist", secondary="user_favorite_artist", back_populates="favorite_users")
     favorite_performances = relationship("Performance", secondary="user_favorite_performance", back_populates="favorite_users")
     ticket_alarm_performances = relationship("Performance", secondary="user_performance_ticketalarm", back_populates="ticket_alarm_users")
-    # add
+    
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     review_likes = relationship("ReviewLike", back_populates="user", cascade="all, delete-orphan")
     stamps = relationship("Stamp", back_populates="user", cascade="all, delete-orphan")

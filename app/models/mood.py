@@ -39,5 +39,5 @@ class MoodRecommendation(Base):
     # 제약조건: 한 무드에 같은 공연이 중복 등록되지 않도록
     __table_args__ = (
         UniqueConstraint("mood_id", "performance_id", name="uq_mood_performance"),
-        Index("ix_mood_id_created_at", "mood_id", "created_at"),  # 조회·정렬 최적화
+        Index("ix_mood_id_created_at", "mood_id", "created_at"),  # 조회, 정렬 최적화
     )

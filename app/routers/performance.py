@@ -30,7 +30,7 @@ def get_performance_list(
     size: int = Query(10, ge=1),
     db: Session = Depends(get_db),
 ):
-    performances, total = performance_crud.get_performances(db, region, sort, page, size)
+    performances, total = performance_crud.get_performances_only_supposed(db, region, sort, page, size)
     return PerformanceListResponse(
         page=page,
         totalPages=(total + size - 1) // size,

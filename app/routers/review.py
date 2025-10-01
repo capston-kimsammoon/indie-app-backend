@@ -1,4 +1,5 @@
 # app/routers/review.py
+from fastapi import Body
 from typing import List, Optional
 from uuid import uuid4
 import os
@@ -12,7 +13,7 @@ from app.models.review_image import ReviewImage
 from app.models.venue import Venue
 from app.models.user import User
 from app.utils.dependency import get_current_user, get_current_user_optional  # 로그인 사용자 (없으면 401)
-from app.schemas.review import ReviewOut, ReviewListOut,  UserBrief, ReviewImageOut
+from app.schemas.review import ReviewOut, ReviewListOut,  UserBrief, ReviewImageOut, ReviewCreateIn
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/venue", tags=["Review"])
@@ -383,3 +384,57 @@ def unlike_review(
     return {"like_count": cnt, "liked_by_me": False}
 
 
+
+@router.post("/{venue_id}/review/write2", response_model=ReviewOut, status_code=201)
+def create_review_v2(
+    venue_id: int,
+    payload: ReviewCreateIn = Body(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 1) 공연장 존재 확인
+    venue_exists = db.query(Venue.id).filter(Venue.id == venue_id).first()
+    if not venue_exists:
+        raise HTTPException(status_code=404, detail="Venue not found")
+
+    # 2) 리뷰 저장
+    review = Review(user_id=current_user.id, venue_id=venue_id, content=payload.content.strip())
+    db.add(review)
+    db.flush()  # review.id 확보
+
+    # 3) 이미지 URL 저장 (공개 버킷 public_url 그대로)
+    MAX_FILES = 6
+    urls = (payload.image_urls or [])[:MAX_FILES]
+
+    saved_rows: list[ReviewImage] = []
+    for u in urls:
+        s = (u or "").strip().strip('"')
+        if not s:
+            continue
+        # 간단 검증: http(s)만 허용
+        if not (s.startswith("http://") or s.startswith("https://")):
+            raise HTTPException(status_code=400, detail=f"Invalid image url: {s}")
+        saved_rows.append(ReviewImage(review_id=review.id, image_url=s))
+
+    if saved_rows:
+        db.add_all(saved_rows)
+
+    db.commit()
+    db.refresh(review)
+
+    images_out = [ReviewImageOut(image_url=im.image_url) for im in (review.images or [])]
+
+    return ReviewOut(
+        id=review.id,
+        content=review.content,
+        created_at=review.created_at,
+        user=UserBrief(
+            id=current_user.id,
+            nickname=current_user.nickname or "익명",
+            profile_url=_abs_url(str(request.base_url), current_user.profile_url),
+        ),
+        images=images_out,
+        like_count=0,
+        liked_by_me=False,
+    )
