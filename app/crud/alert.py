@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
-from app.models.user_performance_open_alarm import UserPerformanceOpenAlarm
+from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm
 
 
 def create_alert(db: Session, user_id: int, type: str, ref_id: int):
@@ -29,13 +29,13 @@ def create_alert(db: Session, user_id: int, type: str, ref_id: int):
 
     elif type == "ticket_open":
         exists = (
-            db.query(UserPerformanceOpenAlarm)
+            db.query(UserPerformanceTicketAlarm)
             .filter_by(user_id=user_id, performance_id=ref_id)
             .first()
         )
         if exists:
             return None
-        db.add(UserPerformanceOpenAlarm(user_id=user_id, performance_id=ref_id))
+        db.add(UserPerformanceTicketAlarm(user_id=user_id, performance_id=ref_id))
 
     else:
         return False
@@ -59,7 +59,7 @@ def delete_alert(db: Session, user_id: int, type: str, ref_id: int):
         )
     elif type == "ticket_open":
         alert = (
-            db.query(UserPerformanceOpenAlarm)
+            db.query(UserPerformanceTicketAlarm)
             .filter_by(user_id=user_id, performance_id=ref_id)
             .first()
         )
