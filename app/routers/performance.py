@@ -4,7 +4,7 @@ from typing import Optional, List
 from datetime import datetime, date
 from datetime import time as dt_time
 from pydantic import BaseModel, Field
-
+from sqlalchemy import text  # ← 추가
 from app.database import get_db
 from app.schemas.performance import (
     PerformanceListResponse,
@@ -201,9 +201,10 @@ def debug_notify(perf_id: int, db: Session = Depends(get_db)):
         return {"ok": False, "msg": "no artists mapped"}
     res = notify_artist_followers_on_new_performance(db, performance_id=perf_id, artist_ids=artist_ids)
     return {"ok": True, "artist_ids": artist_ids, **res}
-
-
+# ====== 디버그 도우미(선택) ======
 @router.get("/debug/pingdb")
 def debug_pingdb(db: Session = Depends(get_db)):
-    r = db.execute("SELECT DATABASE() AS db, @@port AS port").fetchall()
-    return [dict(x._mapping) for x in r]
+    rows = db.execute(
+        text("SELECT DATABASE() AS db, @@version AS ver, @@port AS port")
+    ).mappings().all()
+    return [dict(r) for r in rows]   # ← 핵심: JSON 직렬화 가능한 형태로 변환
