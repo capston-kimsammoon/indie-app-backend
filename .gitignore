@@ -211,6 +211,3 @@ Thumbs.db
 # 정적 업로드(필요시 경로 조정)
 app/static/uploads/**
 app/media/**
-
-# 구글 클라우드 키 파일 저장된 경로
-*./secrets
