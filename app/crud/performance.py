@@ -11,7 +11,56 @@ from app.models.artist import Artist
 from app.models.performance_artist import PerformanceArtist
 from app.models.user_favorite_performance import UserFavoritePerformance
 from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm
-from app.models.user_favorite_artist import UserFavoriteArtist   # ✅ 추가 (A묶음용)
+from app.models.user_favorite_artist import UserFavoriteArtist   
+
+
+def get_performances_only_supposed( # 이미 끝난 공연 안 나오게끔 (날짜, 시간 둘다 고려)
+    db: Session,
+    region: Optional[List[str]],
+    sort: str,
+    page: int,
+    size: int,
+) -> (List[Performance], int):
+    query = db.query(Performance).join(Venue)
+
+    # ✅ 지역 필터
+    if region:
+        region = [r.strip() for r in region if r and r.strip() != "전체"]
+        if region:
+            query = query.filter(Venue.region.in_(region))
+
+    # ✅ 오늘 이후 or 오늘인데 아직 시작 전인 공연만 필터링
+    today = date.today()
+    now_t = datetime.now().time()
+    query = query.filter(
+        or_(
+            Performance.date > today,
+            and_(
+                Performance.date == today,
+                or_(
+                    Performance.time == None,   # 시간이 없으면 포함
+                    Performance.time >= now_t  # 시간이 현재 이후
+                )
+            )
+        )
+    )
+
+    # 정렬 조건
+    if sort == "date":
+        query = query.order_by(Performance.date.asc(), Performance.time.asc())
+    elif sort == "created_at":
+        query = query.order_by(Performance.created_at.desc())
+    elif sort == "likes":
+        query = (
+            query.outerjoin(UserFavoritePerformance, UserFavoritePerformance.performance_id == Performance.id)
+            .group_by(Performance.id, Venue.id)
+            .order_by(func.count(UserFavoritePerformance.user_id).desc())
+        )
+
+    total = query.count()
+    performances = query.offset((page - 1) * size).limit(size).all()
+    return performances, total
+
 
 def get_today_performances(db: Session) -> List[Performance]:
     today = date.today()
@@ -23,16 +72,33 @@ def get_today_performances(db: Session) -> List[Performance]:
     )
 
 def get_recent_performances(db: Session, limit: int) -> List[Performance]:
+
+    today = date.today()
+    now_t = datetime.now().time()
+
     return (
         db.query(Performance)
         .join(Venue)
+        # 오늘 이후 or 오늘인데 시작 전인 공연만 남김
+        .filter(
+            or_(
+                Performance.date > today,
+                and_(
+                    Performance.date == today,
+                    or_(
+                        Performance.time == None,     
+                        Performance.time >= now_t     
+                    )
+                )
+            )
+        )
         .order_by(Performance.created_at.desc())
         .limit(limit)
         .all()
     )
 
 def get_ticket_opening_performances(db: Session, start: date, end: date) -> List[Performance]:
-    # ✅ 범위 필터
+   
     q = (
         db.query(Performance)
         .join(Venue)
@@ -40,7 +106,7 @@ def get_ticket_opening_performances(db: Session, start: date, end: date) -> List
         .filter(Performance.ticket_open_date <= end)
     )
 
-    # ✅ 오늘 포함 시, "오늘의 과거 시간" 제외
+   
     today = date.today()
     if start <= today <= end:
         now_t = datetime.now().time()
@@ -57,7 +123,7 @@ def get_ticket_opening_performances(db: Session, start: date, end: date) -> List
             )
         )
 
-    # ✅ 임박순 정렬 + 최대 6개
+    # 임박순 정렬 + 최대 6개
     return (
         q.order_by(
             Performance.ticket_open_date.asc(),
@@ -69,12 +135,12 @@ def get_ticket_opening_performances(db: Session, start: date, end: date) -> List
     )
 
 def get_recommendation_performances(db: Session, user_id: int) -> List[Performance]:
-    """
-    추천 6개 (부족하면 있는 만큼):
-      - A 3개: 나와 같은 가수를 찜한 사용자들이 찜한 '다른' 공연
-      - B 3개: 내가 찜한 공연을 찜한 사용자들이 찜한 '다른' 공연
-      - 각 묶음 랜덤, 합칠 때 중복 제거, 최대 6개
-    """
+   
+    # 추천 6개 (부족하면 있는 만큼):
+    # A 3개: 나와 같은 가수를 찜한 사용자들이 찜한 다른 공연
+    # B 3개: 내가 찜한 공연을 찜한 사용자들이 찜한 다른 공연
+    # 각 묶음 랜덤, 합칠 때 중복 제거, 최대 6개
+    
     # 내가 찜한 공연 (중복 제거/제외용)
     liked_perf_ids_subq = (
         db.query(UserFavoritePerformance.performance_id)
@@ -82,7 +148,6 @@ def get_recommendation_performances(db: Session, user_id: int) -> List[Performan
         .subquery()
     )
 
-    # ===== A 묶음 =====
     # 내가 찜한 아티스트
     liked_artist_ids_subq = (
         db.query(UserFavoriteArtist.artist_id)
@@ -108,7 +173,6 @@ def get_recommendation_performances(db: Session, user_id: int) -> List[Performan
         .all()
     )
 
-    # ===== B 묶음 =====
     # 내가 찜한 공연을 찜한 '다른' 사용자
     users_like_my_perfs_subq = (
         db.query(UserFavoritePerformance.user_id)

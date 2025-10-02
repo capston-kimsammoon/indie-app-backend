@@ -6,7 +6,7 @@ from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
 
 def get_liked_artists(db: Session, user_id: int, skip: int = 0, limit: int = 10):
-    """사용자가 찜한 아티스트 목록 + 각 아티스트 알림ON 여부 반환 (페이지네이션)"""
+
     alarm_on = exists().where(and_(
         UserArtistTicketAlarm.user_id == user_id,
         UserArtistTicketAlarm.artist_id == Artist.id

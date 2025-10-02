@@ -7,6 +7,6 @@ class PerformanceArtist(Base):
     performance_id = Column(Integer, ForeignKey("performance.id"), primary_key=True)
     artist_id = Column(Integer, ForeignKey("artist.id"), primary_key=True)
 
-    __table_args__ = ( # 복합키 설정
+    __table_args__ = ( 
     PrimaryKeyConstraint("performance_id", "artist_id"),
 )

@@ -1,45 +1,71 @@
-import os
-import asyncio
-from contextlib import suppress
-
+# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import os
+from sqlalchemy import text
 
-from app.database import SessionLocal, Base, engine
+from app.database import SessionLocal, engine
 from app.routers import (
-    post, auth, user, search, nearby, venue, alert, like,
-    performance, performance_home, calender, artist, comment, review, stamp
+    auth, user, search, nearby, venue, alert, like,
+    performance, performance_home, calender, artist,
+    magazine, review, stamp
 )
-
-
 from app.routers import notification as notification_router
+from app.routers import mood as mood_router
 import app.models
 
-# ✅ FastAPI 앱 초기화
 app = FastAPI()
 
-# ✅ 정적 파일 경로 설정
+
+# --- Health ---
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+# --- Debug: DB 연결 및 카운트 ---
+@app.get("/__debug/db")
+def __debug_db():
+    with SessionLocal() as db:
+        url = str(engine.url)
+        try:
+            cnt = db.execute(text("SELECT COUNT(*) FROM mood")).scalar()
+        except Exception as e:
+            cnt = f"ERROR: {e.__class__.__name__}: {e}"
+        return {"engine_url": url, "mood_count": cnt}
+
+
+# --- 정적 파일 ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# ✅ CORS 설정
+
+# --- CORS ---
+ALLOW_ORIGINS = [
+    "https://modiemodie.com",
+    "https://www.modiemodie.com",  # ✅ www 도메인도 허용
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=ALLOW_ORIGINS,     # ✅ 반드시 구체 도메인
+    allow_credentials=True,          # ✅ 쿠키/세션 사용시 필수
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# ✅ 라우터 등록
-app.include_router(post.router)
+
+# --- 라우터 등록 ---
+app.include_router(mood_router.router)
+app.include_router(mood_router.router, prefix="/performance")  # /performance/mood/* 별칭
 app.include_router(performance_home.router)
 app.include_router(calender.router)
 app.include_router(performance.router)
 app.include_router(artist.router)
-app.include_router(comment.router)
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(search.router)
@@ -47,57 +73,14 @@ app.include_router(nearby.router)
 app.include_router(venue.router)
 app.include_router(alert.router)
 app.include_router(like.router)
+app.include_router(magazine.router)
+app.include_router(notification_router.router)
+app.include_router(notification_router.alias)
 app.include_router(review.router)
 app.include_router(stamp.router)
 
 
-# ✅ 알림 라우터 (신규 + 레거시 호환 둘 다)
-app.include_router(notification_router.router)   # /notifications/*
-app.include_router(notification_router.alias)    # /notices/notifications/*
-
-
-# ✅ 루트 엔드포인트
+# --- Root ---
 @app.get("/")
 def root():
-   
     return {"message": "MySQL 테이블 생성 완료 !!"}
-
-
-# === 백그라운드 루프: SQL 직삽도 자동 반영 ===
-async def _loop_reconcile_new_perfs():
-    """
-    DB에 직접 INSERT한 공연/매핑을 보정해서
-    'new_performance_by_artist' 알림을 자동 생성.
-    """
-    from app.services.notify import reconcile_new_performance_notifications
-    while True:
-        with suppress(Exception):
-            db = SessionLocal()
-            try:
-                # 최근 24시간치만 스캔 → 1분마다 갱신
-                reconcile_new_performance_notifications(db, since_hours=24)
-            finally:
-                db.close()
-        await asyncio.sleep(60)  # 1분마다
-
-
-async def _loop_ticket_open():
-    """
-    예매오픈 D-1 12:00(KST) 도달분 자동 발송.
-    """
-    from app.services.notify import dispatch_scheduled_notifications
-    while True:
-        with suppress(Exception):
-            db = SessionLocal()
-            try:
-                dispatch_scheduled_notifications(db)
-            finally:
-                db.close()
-        await asyncio.sleep(60)  # 1분마다
-
-
-@app.on_event("startup")
-async def _startup_loops():
-    # 서버 켜지면 자동으로 두 루프 시작
-    asyncio.create_task(_loop_reconcile_new_perfs())
-    asyncio.create_task(_loop_ticket_open())

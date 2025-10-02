@@ -8,7 +8,7 @@ class ReviewImage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     review_id = Column(Integer, ForeignKey("review.id", ondelete="CASCADE"), nullable=False, index=True)
-    image_url = Column(String(300), nullable=False)  # ERD 표기 그대로
+    image_url = Column(String(300), nullable=False)  
 
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 

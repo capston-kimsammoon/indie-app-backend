@@ -1,19 +1,19 @@
 import os
 import sys
 from dotenv import load_dotenv
-from logging.config import fileConfig
 
-# sys.path에 프로젝트 루트 경로 추가
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+load_dotenv(os.path.join(BASE_DIR, 'app', '.env'))  
+
+sys.path.insert(0, BASE_DIR)
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app import models
+from app import models  
 from app.database import Base
-from app.config import settings 
-
-load_dotenv()
+from app.config import settings
 
 DB_HOST = settings.DB_HOST
 DB_PORT = settings.DB_PORT
@@ -22,14 +22,11 @@ DB_USER = settings.DB_USER
 DB_PASSWORD = settings.DB_PASSWORD
 
 config = context.config
-
 config.set_main_option(
-    'sqlalchemy.url',
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    "sqlalchemy.url",
+    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
 )
 
-# if config.config_file_name is not None:
-#     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 

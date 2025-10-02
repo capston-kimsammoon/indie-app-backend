@@ -1,8 +1,8 @@
-"""적당한 메시지
+"""init
 
-Revision ID: f65a67fd7cee
+Revision ID: bc4df0c6e40d
 Revises: 
-Create Date: 2025-09-16 00:52:00.243261
+Create Date: 2025-10-02 02:50:28.147439
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f65a67fd7cee'
+revision: str = 'bc4df0c6e40d'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -39,6 +39,15 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_magazine_id'), 'magazine', ['id'], unique=False)
+    op.create_table('mood',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
+    )
+    op.create_index(op.f('ix_mood_id'), 'mood', ['id'], unique=False)
     op.create_table('user',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('kakao_id', sa.String(length=100), nullable=False),
@@ -100,29 +109,16 @@ def upgrade() -> None:
     sa.Column('time', sa.Time(), nullable=False),
     sa.Column('ticket_open_date', sa.Date(), nullable=True),
     sa.Column('ticket_open_time', sa.Time(), nullable=True),
-    sa.Column('online_onsite', sa.String(length=100), nullable=False),
-    sa.Column('price', sa.Integer(), nullable=False),
-    sa.Column('image_url', sa.String(length=300), nullable=False),
+    sa.Column('price', sa.String(length=200), nullable=False),
+    sa.Column('image_url', sa.String(length=300), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('shortcode', sa.String(length=100), nullable=True),
-    sa.Column('detail_url', sa.String(length=300), nullable=False),
+    sa.Column('detail_url', sa.String(length=300), nullable=True),
     sa.ForeignKeyConstraint(['venue_id'], ['venue.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_performance_id'), 'performance', ['id'], unique=False)
-    op.create_table('post',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=True),
-    sa.Column('title', sa.String(length=200), nullable=True),
-    sa.Column('content', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('thumbnail_filename', sa.String(length=200), nullable=True),
-    sa.Column('is_reported', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_post_id'), 'post', ['id'], unique=False)
     op.create_table('review',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -148,19 +144,19 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('user_id', 'artist_id')
     )
-    op.create_table('comment',
+    op.create_table('mood_recommendation',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('post_id', sa.Integer(), nullable=False),
-    sa.Column('parent_comment_id', sa.Integer(), nullable=True),
-    sa.Column('content', sa.Text(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['parent_comment_id'], ['comment.id'], ),
-    sa.ForeignKeyConstraint(['post_id'], ['post.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.Column('mood_id', sa.Integer(), nullable=False),
+    sa.Column('performance_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['mood_id'], ['mood.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['performance_id'], ['performance.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('mood_id', 'performance_id', name='uq_mood_performance')
     )
-    op.create_index(op.f('ix_comment_id'), 'comment', ['id'], unique=False)
+    op.create_index('ix_mood_id_created_at', 'mood_recommendation', ['mood_id', 'created_at'], unique=False)
+    op.create_index(op.f('ix_mood_recommendation_id'), 'mood_recommendation', ['id'], unique=False)
     op.create_table('performance_artist',
     sa.Column('performance_id', sa.Integer(), nullable=False),
     sa.Column('artist_id', sa.Integer(), nullable=False),
@@ -168,32 +164,40 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['performance_id'], ['performance.id'], ),
     sa.PrimaryKeyConstraint('performance_id', 'artist_id')
     )
-    op.create_table('post_image',
+    op.create_table('review_image',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('post_id', sa.Integer(), nullable=False),
+    sa.Column('review_id', sa.Integer(), nullable=False),
     sa.Column('image_url', sa.String(length=300), nullable=False),
-    sa.ForeignKeyConstraint(['post_id'], ['post.id'], ),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['review_id'], ['review.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_post_image_id'), 'post_image', ['id'], unique=False)
-    op.create_table('post_like',
+    op.create_index(op.f('ix_review_image_id'), 'review_image', ['id'], unique=False)
+    op.create_index(op.f('ix_review_image_review_id'), 'review_image', ['review_id'], unique=False)
+    op.create_table('review_like',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=True),
-    sa.Column('post_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['post_id'], ['post.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
+    sa.Column('review_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['review_id'], ['review.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('user_id', 'post_id', name='unique_user_post_like')
+    sa.UniqueConstraint('review_id', 'user_id', name='uq_review_like_review_user')
     )
-    op.create_index(op.f('ix_post_like_id'), 'post_like', ['id'], unique=False)
+    op.create_index(op.f('ix_review_like_id'), 'review_like', ['id'], unique=False)
+    op.create_index(op.f('ix_review_like_review_id'), 'review_like', ['review_id'], unique=False)
+    op.create_index(op.f('ix_review_like_user_id'), 'review_like', ['user_id'], unique=False)
     op.create_table('stamp',
+    sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('performance_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['performance_id'], ['performance.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('user_id', 'performance_id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id', 'performance_id', name='unique_user_performance')
     )
+    op.create_index(op.f('ix_stamp_id'), 'stamp', ['id'], unique=False)
     op.create_table('user_favorite_performance',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('performance_id', sa.Integer(), nullable=False),
@@ -201,15 +205,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('user_id', 'performance_id')
     )
-    op.create_table('user_performance_open_alarm',
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('performance_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['performance_id'], ['performance.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('user_id', 'performance_id')
-    )
-    op.create_index(op.f('ix_user_performance_open_alarm_performance_id'), 'user_performance_open_alarm', ['performance_id'], unique=False)
-    op.create_index(op.f('ix_user_performance_open_alarm_user_id'), 'user_performance_open_alarm', ['user_id'], unique=False)
     op.create_table('user_performance_ticketalarm',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('performance_id', sa.Integer(), nullable=False),
@@ -224,24 +219,24 @@ def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('user_performance_ticketalarm')
-    op.drop_index(op.f('ix_user_performance_open_alarm_user_id'), table_name='user_performance_open_alarm')
-    op.drop_index(op.f('ix_user_performance_open_alarm_performance_id'), table_name='user_performance_open_alarm')
-    op.drop_table('user_performance_open_alarm')
     op.drop_table('user_favorite_performance')
+    op.drop_index(op.f('ix_stamp_id'), table_name='stamp')
     op.drop_table('stamp')
-    op.drop_index(op.f('ix_post_like_id'), table_name='post_like')
-    op.drop_table('post_like')
-    op.drop_index(op.f('ix_post_image_id'), table_name='post_image')
-    op.drop_table('post_image')
+    op.drop_index(op.f('ix_review_like_user_id'), table_name='review_like')
+    op.drop_index(op.f('ix_review_like_review_id'), table_name='review_like')
+    op.drop_index(op.f('ix_review_like_id'), table_name='review_like')
+    op.drop_table('review_like')
+    op.drop_index(op.f('ix_review_image_review_id'), table_name='review_image')
+    op.drop_index(op.f('ix_review_image_id'), table_name='review_image')
+    op.drop_table('review_image')
     op.drop_table('performance_artist')
-    op.drop_index(op.f('ix_comment_id'), table_name='comment')
-    op.drop_table('comment')
+    op.drop_index(op.f('ix_mood_recommendation_id'), table_name='mood_recommendation')
+    op.drop_index('ix_mood_id_created_at', table_name='mood_recommendation')
+    op.drop_table('mood_recommendation')
     op.drop_table('user_favorite_artist')
     op.drop_table('user_artist_ticketalarm')
     op.drop_index(op.f('ix_review_id'), table_name='review')
     op.drop_table('review')
-    op.drop_index(op.f('ix_post_id'), table_name='post')
-    op.drop_table('post')
     op.drop_index(op.f('ix_performance_id'), table_name='performance')
     op.drop_table('performance')
     op.drop_index('ix_notification_user_created', table_name='notification')
@@ -253,6 +248,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_user_kakao_id'), table_name='user')
     op.drop_index(op.f('ix_user_id'), table_name='user')
     op.drop_table('user')
+    op.drop_index(op.f('ix_mood_id'), table_name='mood')
+    op.drop_table('mood')
     op.drop_index(op.f('ix_magazine_id'), table_name='magazine')
     op.drop_table('magazine')
     op.drop_index(op.f('ix_artist_name'), table_name='artist')

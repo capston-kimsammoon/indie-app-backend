@@ -41,7 +41,8 @@ class VenueDetailResponse(BaseModel):
     address: str
     latitude: float
     longitude: float
-    upcomingPerformance: List[VenuePerformanceItem] = []  # ← 기본값 빈 리스트
-
+    upcomingPerformance: List[VenuePerformanceItem] = []  
+    pastPerformance: List[VenuePerformanceItem] = []
+    
     class Config:
         orm_mode = True

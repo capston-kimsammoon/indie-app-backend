@@ -1,4 +1,4 @@
-# app/crud/artist.py (예시)
+# app/crud/artist.py 
 
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
@@ -11,16 +11,16 @@ from app.models.performance_artist import PerformanceArtist
 from app.models.performance import Performance
 from app.utils.text_utils import clean_title
 
-KST = timezone(timedelta(hours=9))  # 서비스 TZ가 KST라면 사용
+KST = timezone(timedelta(hours=9))  # 서비스 TZ가 KST이면 사용
 
-# 아티스트 목록 조회 (페이지네이션 + N+1 제거)
+# 아티스트 목록 조회 
 def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
     q = db.query(Artist)
     total = q.count()
     offset = (page - 1) * size
     artists = q.order_by(asc(Artist.name)).offset(offset).limit(size).all()
 
-    # isLiked 집합 미리 뽑기 (user_id 없으면 False)
+    # isLiked 집합 미리 뽑기 
     liked_set = set()
     if user_id:
         artist_ids = [a.id for a in artists]
@@ -45,7 +45,7 @@ def get_artist_list(db: Session, user_id: int | None, page: int, size: int):
     }
 
 
-# 아티스트 상세 조회 (시간 NULL 안전 + 정렬 + 알림 여부 포함)
+# 아티스트 상세 조회 
 def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
     artist = db.query(Artist).filter_by(id=artist_id).first()
     if not artist:
@@ -65,7 +65,7 @@ def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
             user_id=user_id, artist_id=artist_id
         ).first() is not None
 
-    # 관련 공연 id → 공연 조회(정렬 포함)
+    # 관련 공연 id -> 공연 조회(정렬 포함)
     perf_ids_subq = (db.query(PerformanceArtist.performance_id)
                        .filter(PerformanceArtist.artist_id == artist_id)
                        .subquery())
@@ -75,13 +75,13 @@ def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
                .order_by(asc(Performance.date), asc(Performance.time))
                .all())
 
-    now = datetime.now(KST)  # KST 기준 (원하면 timezone 제거 가능)
+    now = datetime.now(KST) 
     upcoming, past = [], []
 
     for p in perfs:
         # 날짜/시간 보정
         if not p.date:
-            continue  # 날짜 없으면 스킵(또는 기본값 처리)
+            continue  # 날짜 없으면 스킵
         p_time = p.time or dt_time(0, 0)  # NULL → 00:00
         dt_val = datetime.combine(p.date, p_time, tzinfo=KST)
 
@@ -99,10 +99,9 @@ def get_artist_detail(db: Session, artist_id: int, user_id: int | None):
         else:
             past.append(perf_data)
 
-    # 정렬: 다중 삽입 경로 대비 재정렬 안전
     # upcoming: 가까운 순, past: 최신이 위로 오게
     def _key(item):
-        # "YYYY-MM-DDTHH:MM" or "YYYY-MM-DD"
+        
         ds = item["date"]
         try:
             return datetime.fromisoformat(ds) if "T" in ds else datetime.fromisoformat(ds + "T00:00")
