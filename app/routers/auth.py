@@ -8,6 +8,7 @@ import random
 import string
 from secrets import token_urlsafe
 from typing import Optional
+from urllib.parse import urlparse
 
 # 의존성
 from app.database import get_db
@@ -36,26 +37,36 @@ def _env_bool(key: str, default: bool = False) -> bool:
     return str(v).lower() in {"1", "true", "yes", "y"}
 
 def _front_redirect_url() -> str:
+    """
+    로그인 성공 후 프론트로 이동할 URL. 운영에서는 환경변수로 고정하세요.
+    예) https://modiemodie.com/login/success
+    """
     return (
         getattr(app_settings, "FRONT_REDIRECT_URL", None)
         or os.getenv("FRONT_REDIRECT_URL")
         or "http://localhost:3000/login/success"
     )
 
+def _front_origin() -> str:
+    """
+    postMessage target origin 용. (scheme + host)
+    예) https://modiemodie.com
+    """
+    u = urlparse(_front_redirect_url())
+    return f"{u.scheme}://{u.netloc}"
+
 def _cookie_kwargs() -> dict:
     """
-    로컬 개발 기본값:
-      - secure=False (http에서도 쿠키 저장/전송)
-      - samesite="Lax"
-      - domain 미설정 (localhost에서 가장 안전)
-    운영(HTTPS)에서는 환경변수로 올리면 됨:
-      COOKIE_SECURE=true / COOKIE_SAMESITE=None / COOKIE_DOMAIN=example.com
+    로컬(기본):
+      - secure=False, samesite="Lax", domain=None
+    운영(HTTPS, 크로스사이트):
+      - COOKIE_SECURE=true, COOKIE_SAMESITE=None, COOKIE_DOMAIN=modiemodie.com
     """
     return dict(
         httponly=True,
         secure=_env_bool("COOKIE_SECURE", False),
         samesite=os.getenv("COOKIE_SAMESITE", "Lax"),
-        max_age=60 * 60 * 24 * 7,
+        max_age=60 * 60 * 24 * 7,  # 7 days
         path="/",
         domain=os.getenv("COOKIE_DOMAIN") or None,
     )
@@ -75,7 +86,7 @@ def _delete_cookie_kwargs() -> dict:
 def get_kakao_login_url(force: bool = Query(False)):
     kakao_client_id = app_settings.KAKAO_REST_API_KEY
     redirect_uri = app_settings.KAKAO_REDIRECT_URI
-    state = token_urlsafe(16)  # (선택) CSRF 방지 – 콜백에서 검증하려면 세션/스토리지 사용
+    state = token_urlsafe(16)  # (선택) CSRF 방지 – 세션/스토리지로 검증하려면 추가 구현
 
     login_url = (
         "https://kauth.kakao.com/oauth/authorize"
@@ -85,7 +96,7 @@ def get_kakao_login_url(force: bool = Query(False)):
         f"&state={state}"
     )
     if force:
-        login_url += "&prompt=login"
+        login_url += "&prompt=login"  # 계정 선택 강제
 
     return {"loginUrl": login_url, "state": state}
 
@@ -98,7 +109,7 @@ def get_kakao_login_url(force: bool = Query(False)):
 def kakao_callback(
     code: str,
     db: Session = Depends(get_db),
-    mode: str = Query(default="redirect", pattern="^(redirect|popup|json)$"),  # redirect | popup | json
+    mode: str = Query(default="redirect", pattern="^(redirect|popup|json)$"),
 ):
     try:
         # (1) code -> kakao access_token
@@ -115,9 +126,9 @@ def kakao_callback(
         # (3) DB upsert
         user: Optional[User] = db.query(User).filter(User.kakao_id == kakao_id).first()
         if not user:
-            # 신규 가입: 카카오 정보로 '초기화'만 수행
+            # 신규 가입
             nickname = base_nickname
-            for _ in range(6):  # UNIQUE 충돌 시 꼬리표 달아 재시도
+            for _ in range(6):
                 try:
                     user = User(
                         kakao_id=kakao_id,
@@ -137,34 +148,22 @@ def kakao_callback(
             else:
                 raise HTTPException(status_code=400, detail="닉네임 생성 실패. 다시 시도해 주세요.")
         else:
-            # 기존 유저: 사용자가 수정한 값은 '절대' 덮어쓰지 않는다.
+            # 기존 유저: 비어있는 필드만 보정(사용자 입력은 보존)
             changed = False
-
-            # (선택) 비어있는 경우에만 카카오 값으로 보정
             if (not user.nickname or user.nickname.strip() == "") and base_nickname:
-                user.nickname = base_nickname
-                changed = True
-
+                user.nickname = base_nickname; changed = True
             if (not user.profile_url or user.profile_url.strip() == "") and profile_url:
-                user.profile_url = profile_url
-                changed = True
-
-            # 기본값 보정(필드가 None이면 False로)
+                user.profile_url = profile_url; changed = True
             if hasattr(user, "alarm_enabled") and user.alarm_enabled is None:
-                user.alarm_enabled = False
-                changed = True
+                user.alarm_enabled = False; changed = True
             if hasattr(user, "location_enabled") and user.location_enabled is None:
-                user.location_enabled = False
-                changed = True
-
+                user.location_enabled = False; changed = True
             if changed:
                 try:
                     db.commit()
                     db.refresh(user)
                 except IntegrityError:
                     db.rollback()
-                    # 보정 중 충돌은 드물며, 굳이 재시도할 필요 없음
-                    pass
 
         # (4) 토큰 발급/저장
         access_token = auth_utils.create_access_token(user.id)
@@ -183,7 +182,7 @@ def kakao_callback(
             return resp
 
         if mode == "popup":
-            base = front_redirect.split("/login")[0]
+            origin = _front_origin()
             html = f"""
             <!doctype html>
             <meta charset="utf-8">
@@ -192,7 +191,7 @@ def kakao_callback(
                 try {{
                   const payload = {{ token: "{access_token}", refresh: "{refresh_token}" }};
                   if (window.opener) {{
-                    window.opener.postMessage(payload, "{base}");
+                    window.opener.postMessage(payload, "{origin}");
                   }}
                 }} catch(e) {{
                   console.error(e);
