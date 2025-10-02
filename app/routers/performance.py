@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional, List
