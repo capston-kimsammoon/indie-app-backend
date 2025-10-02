@@ -44,7 +44,7 @@ def _front_redirect_url() -> str:
     return (
         getattr(app_settings, "FRONT_REDIRECT_URL", None)
         or os.getenv("FRONT_REDIRECT_URL")
-        or "http://localhost:3000/login/success"
+        or "https://modiemodie.com/login/success"
     )
 
 def _front_origin() -> str:
