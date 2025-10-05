@@ -5,3 +5,4 @@ pydantic
 pydantic-settings
 pymysql
 python-dotenv
+pytz
