@@ -52,6 +52,7 @@ class PerformanceDetailResponse(BaseModel):
     price: str
     ticket_open_date: Optional[date]
     ticket_open_time: Optional[time]
+    shortcode: Optional[str]
     detailLink: Optional[str]
     posterUrl: Optional[str]
     likeCount: int

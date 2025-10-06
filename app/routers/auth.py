@@ -9,6 +9,7 @@ import string
 from secrets import token_urlsafe
 from typing import Optional
 from urllib.parse import urlparse
+from app.utils.gcs import delete_from_gcs
 
 # 의존성
 from app.database import get_db
@@ -19,12 +20,15 @@ from app.config import settings as app_settings
 
 # utils
 from app.utils.auth import auth as auth_utils
-from app.utils.auth.kakao import get_kakao_access_token, get_kakao_user_info
+from app.utils.auth.kakao import get_kakao_access_token, get_kakao_user_info, kakao_unlink
 
 # models
 from app.models.user import User
 
+import requests
+
 router = APIRouter(prefix="/auth", tags=["Auth"])
+GCS_BUCKET_URL = f"https://storage.googleapis.com/{os.getenv('GCS_BUCKET_NAME')}/"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -78,6 +82,15 @@ def _delete_cookie_kwargs() -> dict:
         domain=os.getenv("COOKIE_DOMAIN") or None,
     )
 
+def kakao_unlink_admin():
+    """
+    카카오 Admin Key를 사용한 사용자 unlink
+    """
+    url = "https://kapi.kakao.com/v1/user/unlink"
+    headers = {"Authorization": f"KakaoAK {app_settings.KAKAO_ADMIN_KEY}"}
+    res = requests.post(url, headers=headers)
+    res.raise_for_status()
+    return res.json()
 
 # ─────────────────────────────────────────────────────────────
 # 1) 프론트에 카카오 로그인 URL 제공 (force=true면 계정선택 강제)
@@ -236,6 +249,35 @@ def logout_user(
     db.commit()
 
     resp = JSONResponse({"message": "로그아웃되었습니다."})
+    delete_kw = _delete_cookie_kwargs()
+    for name in ("access_token", "refresh_token"):
+        resp.delete_cookie(name, **delete_kw)
+    return resp
+
+
+# ─────────────────────────────────────────────────────────────
+# 4) 회원 탈퇴
+# ─────────────────────────────────────────────────────────────
+@router.delete("/withdraw")
+def withdraw_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # 1) 카카오 unlink (선택)
+    if current_user.kakao_id:
+        kakao_unlink(current_user.kakao_id)
+
+    print("current_user.profile_url: ", current_user.profile_url)
+    # 1-1) GCS 프로필 이미지 삭제
+    if current_user.profile_url:
+        delete_from_gcs(current_user.profile_url)
+
+    # 2) DB에서 사용자 삭제
+    db.delete(current_user)
+    db.commit()
+    
+    # 3) 쿠키 삭제
+    resp = JSONResponse({"message": "탈퇴되었습니다."})
     delete_kw = _delete_cookie_kwargs()
     for name in ("access_token", "refresh_token"):
         resp.delete_cookie(name, **delete_kw)
