@@ -3,7 +3,6 @@ from fastapi import Body
 from typing import List, Optional
 from uuid import uuid4
 import os
-import logging
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File, Form, status, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -20,7 +19,6 @@ from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/venue", tags=["Review"])
 GCS_BUCKET_URL = f"https://storage.googleapis.com/{os.getenv('GCS_BUCKET_NAME')}/"
-logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
 
@@ -265,26 +263,14 @@ async def create_review(
     MAX_FILES = 6
 
     saved_rows: list[ReviewImage] = []
-    uid = (
-        getattr(current_user, "kakao_id", None)
-        or getattr(current_user, "social_id", None)
-        or current_user.id
-    )
-    folder = f"review/{uid}/{venue_id}"
-
     for up in (images or [])[:MAX_FILES]:
-        fname = getattr(up, "filename", "") or ""
-        ext = os.path.splitext(fname)[-1].lower()
+        ext = os.path.splitext(up.filename)[-1].lower()
         if ext not in ALLOWED:
-            logger.debug("Skip upload (disallowed ext): %s (%s)", fname, ext)
-            continue
+            continue  # 허용되지 않는 확장자 제외
 
-        try:
-            url = upload_to_gcs(up, folder=folder)  # ← 실제 업로드 후 공개 URL 반환
-        except Exception:
-            logger.exception("upload_to_gcs failed for %s", fname)
-            continue  # 업로드 실패한 파일은 건너뜀
-
+        uid = getattr(current_user, "kakao_id", None) or getattr(current_user, "social_id", None) or current_user.id
+        folder = f"review/{uid}/{venue_id}"   # 예: review/123456/42/xxxx.jpg
+        url = upload_to_gcs(up, folder=folder)
         saved_rows.append(ReviewImage(review_id=review.id, image_url=url))
 
     if saved_rows:
@@ -293,10 +279,7 @@ async def create_review(
     db.commit()
     db.refresh(review)
 
-    images_out = [
-        ReviewImageOut(image_url=_abs_url(str(request.base_url), im.image_url))
-        for im in (review.images or [])
-    ]
+    images_out = [ReviewImageOut(image_url=_abs_url(str(request.base_url), im.image_url)) for im in (review.images or [])]
 
     return ReviewOut(
         id=review.id,
