@@ -284,20 +284,11 @@ async def create_review(
             continue
         ext = os.path.splitext(up.filename)[1].lower()
         if ext not in ALLOWED:
-            raise HTTPException(status_code=400, detail=f"Unsupported image type: {ext}")
+            continue  # 허용되지 않는 확장자 제외
 
-        data = await up.read()
-        if len(data) > MAX_SIZE:
-            raise HTTPException(status_code=400, detail=f"File too large (>10MB): {up.filename}")
-
-        fname = f"{uuid4().hex}{ext}"
-        abs_path = os.path.join(upload_dir, fname)
-        with open(abs_path, "wb") as f:
-            f.write(data)
-
-        # DB에는 상대경로로 저장 (정적 서빙: /static/...)
-        rel_url = f"/static/review/{fname}"
-        saved_rows.append(ReviewImage(review_id=review.id, image_url=rel_url))
+        uid = getattr(current_user, "kakao_id", None) or getattr(current_user, "social_id", None) or current_user.id
+        folder = f"review/{uid}/{venue_id}" 
+        saved_rows.append(ReviewImage(review_id=review.id, image_url=url))
 
     if saved_rows:
         db.add_all(saved_rows)
