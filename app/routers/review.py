@@ -13,12 +13,10 @@ from app.models.review_image import ReviewImage
 from app.models.venue import Venue
 from app.models.user import User
 from app.utils.dependency import get_current_user, get_current_user_optional  # 로그인 사용자 (없으면 401)
-from app.utils.gcs import upload_to_gcs, delete_from_gcs
 from app.schemas.review import ReviewOut, ReviewListOut,  UserBrief, ReviewImageOut, ReviewCreateIn
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/venue", tags=["Review"])
-GCS_BUCKET_URL = f"https://storage.googleapis.com/{os.getenv('GCS_BUCKET_NAME')}/"
 
 KST = timezone(timedelta(hours=9))
 
@@ -43,13 +41,14 @@ def _abs_url(base: str, path: Optional[str]) -> Optional[str]:
         return f"{base.rstrip('/')}{s}"
     return f"{base.rstrip('/')}/{s}"
 
+# app/routers/review.py
+
 def _serialize_review(
     request: Request,
     r: Review,
     like_count_map: dict[int, int],
     liked_ids: set[int],
     include_venue: bool = False,
-    current_user: Optional[User] = None,
 ) -> dict:
     base = str(request.base_url)
 
@@ -72,7 +71,6 @@ def _serialize_review(
         "images": [{"image_url": _abs_url(base, img.image_url)} for img in (r.images or [])],
         "like_count": like_count_map.get(r.id, 0),
         "liked_by_me": r.id in liked_ids,
-        "is_mine": r.user_id == getattr(current_user, "id", None)
     }
 
     if include_venue and r.venue:
@@ -106,8 +104,53 @@ def _my_liked_set(db: Session, review_ids: List[int], user_id: Optional[int]) ->
     )
     return {rid for (rid,) in rows}
 
+
+# ------------ 내가 쓴 리뷰 ------------
+@router.get("/my/review", response_model=ReviewListOut)  
+def list_my_reviews(
+    request: Request,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    order: str = Query("desc"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = (
+        db.query(Review)
+        .options(joinedload(Review.images), joinedload(Review.user))
+        .filter(Review.user_id == current_user.id)
+    )
+    q = q.order_by(Review.created_at.desc() if order == "desc" else Review.created_at.asc())
+    total = q.count()
+    rows = q.offset((page - 1) * size).limit(size).all()
+
+    ids = [r.id for r in rows]
+    like_count_map = _review_like_counts(db, ids)
+    liked_ids = _my_liked_set(db, ids, current_user.id)
+
+    base = str(request.base_url)
+    def abs_url(p): return p if not p or p.startswith("http") else base.rstrip("/") + p
+
+    items = []
+    for r in rows:
+        items.append({
+            "id": r.id,
+            "content": r.content,
+            "created_at": r.created_at,
+            "user": {
+                "id": r.user.id if r.user else None,
+                "nickname": (r.user.nickname if r.user else None) or "익명",
+                "profile_url": abs_url(getattr(r.user, "profile_url", None)) if r.user else None,
+            },
+            "images": [{"image_url": abs_url(im.image_url)} for im in (r.images or [])],
+            "like_count": like_count_map.get(r.id, 0),     # ✅ 총 좋아요 수
+            "liked_by_me": r.id in liked_ids,              # ✅ 내가 눌렀는지
+        })
+
+    return ReviewListOut(items=items, total=total, page=page, size=size)
+
 # ------------ 전체 리뷰 목록 ------------
-@router.get("/reviews/all", response_model=ReviewListOut)
+@router.get("/reviews", response_model=ReviewListOut)
 def list_all_reviews(
     request: Request,
     page: int = Query(1, ge=1),
@@ -143,43 +186,9 @@ def list_all_reviews(
     like_count_map = _review_like_counts(db, ids)
     liked_ids = _my_liked_set(db, ids, getattr(current_user, "id", None))
 
-    items = [_serialize_review(request, r, like_count_map, liked_ids, include_venue=True, current_user=current_user) for r in rows]
+    items = [_serialize_review(request, r, like_count_map, liked_ids, include_venue=True) for r in rows]
     return {"items": items, "total": total, "page": page, "size": size}
 
-# ------------ 내가 쓴 리뷰 ------------
-@router.get("/my/review", response_model=ReviewListOut)
-def list_my_reviews(
-    request: Request,
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
-    order: str = Query("desc"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    로그인한 사용자가 작성한 리뷰 목록 조회
-    venue 정보도 포함
-    """
-    q = (
-        db.query(Review)
-        .options(joinedload(Review.images), joinedload(Review.user), joinedload(Review.venue))  # venue join
-        .filter(Review.user_id == current_user.id)
-    )
-
-    # 정렬
-    q = q.order_by(Review.created_at.desc() if order == "desc" else Review.created_at.asc())
-
-    total = q.count()
-    rows = q.offset((page - 1) * size).limit(size).all()
-
-    ids = [r.id for r in rows]
-    like_count_map = _review_like_counts(db, ids)
-    liked_ids = _my_liked_set(db, ids, current_user.id)
-
-    # ✅ venue 포함하도록 include_venue=True
-    items = [_serialize_review(request, r, like_count_map, liked_ids, include_venue=True) for r in rows]
-
-    return ReviewListOut(items=items, total=total, page=page, size=size)
 
 # ------------ 공연장 리뷰 ------------
 @router.get("/{venue_id}/review", response_model=ReviewListOut)
@@ -244,47 +253,67 @@ async def create_review(
     venue_id: int,
     request: Request,
     content: str = Form(..., min_length=1, max_length=300),
-    images: Optional[List[UploadFile]] = File(None),
+    images: Optional[List[UploadFile]] = File(None),   # 프론트: form.append('images', file)
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # 공연장 존재 확인
+    """리뷰 생성 (여러 장 이미지 업로드 지원)."""
+
+    # 1) 공연장 존재 확인
     venue_exists = db.query(Venue.id).filter(Venue.id == venue_id).first()
     if not venue_exists:
         raise HTTPException(status_code=404, detail="Venue not found")
 
-    # 리뷰 저장
+    # 2) 리뷰 저장
     review = Review(user_id=current_user.id, venue_id=venue_id, content=content.strip())
     db.add(review)
-    db.flush()
+    db.flush()  # review.id 확보
 
-    # 이미지 저장
+    # 3) 이미지 저장
+    upload_dir = "app/static/review"   # 실제 폴더
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # 제한/검증
     ALLOWED = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
     MAX_FILES = 6
+    MAX_SIZE = 10 * 1024 * 1024  # 10MB
 
     saved_rows: list[ReviewImage] = []
-    for up in (images or [])[:MAX_FILES]:
-        ext = os.path.splitext(up.filename)[-1].lower()
+    for idx, up in enumerate((images or [])[:MAX_FILES]):
+        if not up or not up.filename:
+            continue
+        ext = os.path.splitext(up.filename)[1].lower()
         if ext not in ALLOWED:
-            continue  # 허용되지 않는 확장자 제외
+            raise HTTPException(status_code=400, detail=f"Unsupported image type: {ext}")
 
-        uid = getattr(current_user, "kakao_id", None) or getattr(current_user, "social_id", None) or current_user.id
-        folder = f"review/{uid}/{venue_id}"   # 예: review/123456/42/xxxx.jpg
-        url = upload_to_gcs(up, folder=folder)
-        saved_rows.append(ReviewImage(review_id=review.id, image_url=url))
+        data = await up.read()
+        if len(data) > MAX_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large (>10MB): {up.filename}")
+
+        fname = f"{uuid4().hex}{ext}"
+        abs_path = os.path.join(upload_dir, fname)
+        with open(abs_path, "wb") as f:
+            f.write(data)
+
+        # DB에는 상대경로로 저장 (정적 서빙: /static/...)
+        rel_url = f"/static/review/{fname}"
+        saved_rows.append(ReviewImage(review_id=review.id, image_url=rel_url))
 
     if saved_rows:
         db.add_all(saved_rows)
 
+    # 4) 커밋 & 새로고침
     db.commit()
     db.refresh(review)
 
+    # 관계 이미지 다시 읽기(세션 정책 따라 필요할 수 있음)
     images_out = [ReviewImageOut(image_url=_abs_url(str(request.base_url), im.image_url)) for im in (review.images or [])]
 
+    # 5) 응답 (프론트 스키마와 일치)
     return ReviewOut(
         id=review.id,
         content=review.content,
-        created_at=review.created_at,
+        created_at=review.created_at,  # 스키마가 datetime을 허용하므로 그대로 반환
         user=UserBrief(
             id=current_user.id,
             nickname=current_user.nickname or "익명",
@@ -295,7 +324,6 @@ async def create_review(
         liked_by_me=False,
     )
 
-
 # ------------ 삭제 (작성자만) ------------
 @router.delete("/review/{review_id}", tags=["Review"])
 def delete_review(
@@ -305,7 +333,7 @@ def delete_review(
 ):
     r = (
         db.query(Review)
-        .options(joinedload(Review.user), joinedload(Review.images))
+        .options(joinedload(Review.user))
         .filter(Review.id == review_id)
         .first()
     )
@@ -313,16 +341,9 @@ def delete_review(
         raise HTTPException(status_code=404, detail="Review not found")
     if r.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not the author")
-
-    # 이미지 삭제
-    if r.images:
-        for img in r.images:
-            delete_from_gcs(img.image_url)
-
     db.delete(r)
     db.commit()
     return {"ok": True}
-
 
 # ------------ 좋아요 토글 (로그인 필요) ------------
 @router.post("/review/{review_id}/like", tags=["Review"])
@@ -361,3 +382,59 @@ def unlike_review(
         db.commit()
     cnt = db.query(func.count(ReviewLike.id)).filter(ReviewLike.review_id == review_id).scalar()
     return {"like_count": cnt, "liked_by_me": False}
+
+
+
+@router.post("/{venue_id}/review/write2", response_model=ReviewOut, status_code=201)
+def create_review_v2(
+    venue_id: int,
+    payload: ReviewCreateIn = Body(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 1) 공연장 존재 확인
+    venue_exists = db.query(Venue.id).filter(Venue.id == venue_id).first()
+    if not venue_exists:
+        raise HTTPException(status_code=404, detail="Venue not found")
+
+    # 2) 리뷰 저장
+    review = Review(user_id=current_user.id, venue_id=venue_id, content=payload.content.strip())
+    db.add(review)
+    db.flush()  # review.id 확보
+
+    # 3) 이미지 URL 저장 (공개 버킷 public_url 그대로)
+    MAX_FILES = 6
+    urls = (payload.image_urls or [])[:MAX_FILES]
+
+    saved_rows: list[ReviewImage] = []
+    for u in urls:
+        s = (u or "").strip().strip('"')
+        if not s:
+            continue
+        # 간단 검증: http(s)만 허용
+        if not (s.startswith("http://") or s.startswith("https://")):
+            raise HTTPException(status_code=400, detail=f"Invalid image url: {s}")
+        saved_rows.append(ReviewImage(review_id=review.id, image_url=s))
+
+    if saved_rows:
+        db.add_all(saved_rows)
+
+    db.commit()
+    db.refresh(review)
+
+    images_out = [ReviewImageOut(image_url=im.image_url) for im in (review.images or [])]
+
+    return ReviewOut(
+        id=review.id,
+        content=review.content,
+        created_at=review.created_at,
+        user=UserBrief(
+            id=current_user.id,
+            nickname=current_user.nickname or "익명",
+            profile_url=_abs_url(str(request.base_url), current_user.profile_url),
+        ),
+        images=images_out,
+        like_count=0,
+        liked_by_me=False,
+    )
