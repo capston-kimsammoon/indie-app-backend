@@ -1,0 +1,9 @@
+# 다시 복구한 requirements.txt
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pydantic-settings
+pymysql
+python-dotenv
+pytz
