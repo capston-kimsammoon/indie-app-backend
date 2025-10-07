@@ -7,14 +7,27 @@ from fastapi import UploadFile
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 GCS_BUCKET_URL = f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/"
 
-client = storage.Client()
-bucket = client.bucket(GCS_BUCKET_NAME)
+_client = None
+_bucket = None
+
+def _get_bucket():
+    global _client, _bucket
+    # ✅ 필요할 때만 import & 생성 (시작 단계 크래시 방지)
+    if _client is None:
+        from google.cloud import storage
+        _client = storage.Client()
+    if _bucket is None:
+        if not GCS_BUCKET_NAME:
+            raise RuntimeError("GCS_BUCKET_NAME is not set")
+        _bucket = _client.bucket(GCS_BUCKET_NAME)
+    return _bucket
 
 
 def upload_to_gcs(file: UploadFile, folder: str) -> str:
     """
     folder: "review/{사용자 아이디}/{공연장 id}"
     """
+    bucket = _get_bucket()
     ext = file.filename.split(".")[-1]
     fname = f"{folder}/{uuid.uuid4().hex}.{ext}"
     blob = bucket.blob(fname)
@@ -30,7 +43,7 @@ def delete_from_gcs(file_url: str):
     """
     if not file_url.startswith(GCS_BUCKET_URL):
         return
-    
+    bucket = _get_bucket()
     file_path = file_url.replace(GCS_BUCKET_URL, "")
     blob = bucket.blob(file_path)
 
