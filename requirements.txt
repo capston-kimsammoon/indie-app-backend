@@ -10,4 +10,4 @@ requests
 python-multipart
 pytz
 python-dateutil
-google-cloud-storage
+google-cloud-storage>=2.18.0
