@@ -8,42 +8,60 @@ from app.models.performance import Performance
 from math import radians
 import datetime, pytz
 
-# 반경 내 공연장 목록 조회
+kst = pytz.timezone("Asia/Seoul")
+
+# -------------------------------
+# 반경 내 공연장 목록 조회 (오늘 공연 + 현재 시각 이후)
+# -------------------------------
+
 def get_nearby_venues(db: Session, lat: float, lng: float, radius_km: float):
     
-    earth_radius_km = 6371.0
+    now = datetime.datetime.now(kst)
+    today = now.date()
+    current_time = now.time()
 
-    lat_rad = radians(lat)
-    lng_rad = radians(lng)
-
-    return db.query(Venue).filter(
-        earth_radius_km * func.acos(
-            func.sin(func.radians(lat)) * func.sin(func.radians(Venue.latitude)) +
-            func.cos(func.radians(lat)) * func.cos(func.radians(Venue.latitude)) *
-            func.cos(func.radians(Venue.longitude) - func.radians(lng))
-        ) <= radius_km
+    # 근처 후보
+    venues = db.query(Venue).filter(
+        (Venue.latitude >= lat - 0.05) & (Venue.latitude <= lat + 0.05),
+        (Venue.longitude >= lng - 0.05) & (Venue.longitude <= lng + 0.05)
     ).all()
 
-# 지도 범위 내 공연장들의 예정 공연 목록 조회
-def get_performances_in_bounds(db: Session, req):
-    now = datetime.datetime.now(pytz.timezone("Asia/Seoul"))
+    result = []
+    for v in venues:
+        performance_exists = db.query(Performance).filter(
+            Performance.venue_id == v.id,
+            Performance.date == today,
+            Performance.time >= current_time
+        ).first()
+
+        if performance_exists:
+            result.append({
+                "venue_id": v.id,
+                "name": v.name,
+                "address": getattr(v, "address", None),
+                "latitude": v.latitude,
+                "longitude": v.longitude,
+                "image_url": getattr(v, "image_url", None)
+            })
+
+    return result
+
+
+# -------------------------------
+# 지도 범위 내 공연장들의 오늘 공연 목록 조회
+# -------------------------------
+def get_performances_in_bounds(db: Session, req: PerformanceBoundsRequest):
+    now = datetime.datetime.now(kst)
     today = now.date()
     current_time = now.time()
 
     performances = db.query(Performance, Venue).join(Venue).filter(
-        and_(
-            Venue.latitude >= req.sw_lat,
-            Venue.latitude <= req.ne_lat,
-            Venue.longitude >= req.sw_lng,
-            Venue.longitude <= req.ne_lng,
-            or_(
-                Performance.date > today,
-                and_(
-                    Performance.date == today,
-                    Performance.time >= current_time
-                )
-            )
-        )
+        Venue.latitude >= req.sw_lat,
+        Venue.latitude <= req.ne_lat,
+        Venue.longitude >= req.sw_lng,
+        Venue.longitude <= req.ne_lng,
+        Performance.date == today,
+        Performance.time >= current_time
     ).all()
 
     venue_dict = {}
@@ -68,20 +86,18 @@ def get_performances_in_bounds(db: Session, req):
 
     return list(venue_dict.values())
 
-# 특정 공연장의 현재 시각 이후 예정 공연 목록 조회
-def get_performances_by_venue(db: Session, venue_id: int, after: datetime):
-    after_date = after.date()
-    after_time = after.time()
+
+# -------------------------------
+# 특정 공연장의 오늘 공연 (현재 시간 이후)
+# -------------------------------
+def get_performances_by_venue(db: Session, venue_id: int, after: datetime.datetime):
+    today = after.date()
+    current_time = after.time()
 
     performances = db.query(Performance).filter(
         Performance.venue_id == venue_id,
-        or_(
-            Performance.date > after_date,
-            and_(
-                Performance.date == after_date,
-                Performance.time >= after_time
-            )
-        )
+        Performance.date == today,
+        Performance.time >= current_time
     ).all()
 
     return [{
