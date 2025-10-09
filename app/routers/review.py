@@ -13,6 +13,7 @@ from app.models.review_image import ReviewImage
 from app.models.venue import Venue
 from app.models.user import User
 from app.utils.dependency import get_current_user, get_current_user_optional  # 로그인 사용자 (없으면 401)
+from app.utils.gcs import upload_to_gcs
 from app.schemas.review import ReviewOut, ReviewListOut,  UserBrief, ReviewImageOut, ReviewCreateIn
 from datetime import datetime, timedelta, timezone
 
@@ -150,7 +151,7 @@ def list_my_reviews(
     return ReviewListOut(items=items, total=total, page=page, size=size)
 
 # ------------ 전체 리뷰 목록 ------------
-@router.get("/reviews", response_model=ReviewListOut)
+@router.get("/reviews/all", response_model=ReviewListOut)
 def list_all_reviews(
     request: Request,
     page: int = Query(1, ge=1),
@@ -198,7 +199,7 @@ def list_venue_reviews(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),  # ✅ 변경
+    current_user: Optional[User] = Depends(get_current_user_optional),  
     # Depends(lambda: None),  # 로그인 없어도 OK
 ):
     # ✅ 존재 확인(안전판)
@@ -257,7 +258,6 @@ async def create_review(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """리뷰 생성 (여러 장 이미지 업로드 지원)."""
 
     # 1) 공연장 존재 확인
     venue_exists = db.query(Venue.id).filter(Venue.id == venue_id).first()
@@ -270,50 +270,33 @@ async def create_review(
     db.flush()  # review.id 확보
 
     # 3) 이미지 저장
-    upload_dir = "app/static/review"   # 실제 폴더
-    os.makedirs(upload_dir, exist_ok=True)
-
-    # 제한/검증
     ALLOWED = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
     MAX_FILES = 6
-    MAX_SIZE = 10 * 1024 * 1024  # 10MB
 
     saved_rows: list[ReviewImage] = []
-    for idx, up in enumerate((images or [])[:MAX_FILES]):
-        if not up or not up.filename:
-            continue
-        ext = os.path.splitext(up.filename)[1].lower()
+
+    base_folder = f"review/{current_user.kakao_id}/{venue_id}"
+
+    for up in (images or [])[:MAX_FILES]:
+        ext = os.path.splitext(up.filename)[-1].lower()
         if ext not in ALLOWED:
-            raise HTTPException(status_code=400, detail=f"Unsupported image type: {ext}")
+            continue  # 허용되지 않는 확장자 제외
 
-        data = await up.read()
-        if len(data) > MAX_SIZE:
-            raise HTTPException(status_code=400, detail=f"File too large (>10MB): {up.filename}")
-
-        fname = f"{uuid4().hex}{ext}"
-        abs_path = os.path.join(upload_dir, fname)
-        with open(abs_path, "wb") as f:
-            f.write(data)
-
-        # DB에는 상대경로로 저장 (정적 서빙: /static/...)
-        rel_url = f"/static/review/{fname}"
-        saved_rows.append(ReviewImage(review_id=review.id, image_url=rel_url))
+        url = upload_to_gcs(up, folder=base_folder)
+        saved_rows.append(ReviewImage(review_id=review.id, image_url=url))
 
     if saved_rows:
         db.add_all(saved_rows)
 
-    # 4) 커밋 & 새로고침
     db.commit()
     db.refresh(review)
 
-    # 관계 이미지 다시 읽기(세션 정책 따라 필요할 수 있음)
     images_out = [ReviewImageOut(image_url=_abs_url(str(request.base_url), im.image_url)) for im in (review.images or [])]
 
-    # 5) 응답 (프론트 스키마와 일치)
     return ReviewOut(
         id=review.id,
         content=review.content,
-        created_at=review.created_at,  # 스키마가 datetime을 허용하므로 그대로 반환
+        created_at=review.created_at,
         user=UserBrief(
             id=current_user.id,
             nickname=current_user.nickname or "익명",
