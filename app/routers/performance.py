@@ -76,7 +76,7 @@ def get_performance_detail(
         venueId=performance.venue.id,
         venue=performance.venue.name,
         artists=[ArtistSummary(id=a.id, name=a.name, image_url=a.image_url) for a in artists],
-        price=f"{performance.price}원" if performance.price is not None else None,
+        price=f"{performance.price}" if performance.price is not None else None,
         ticket_open_date=performance.ticket_open_date,
         ticket_open_time=performance.ticket_open_time,
         shortcode=performance.shortcode,
