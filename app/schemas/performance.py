@@ -53,6 +53,7 @@ class PerformanceDetailResponse(BaseModel):
     ticket_open_date: Optional[date]
     ticket_open_time: Optional[time]
     detailLink: Optional[str]
+    shortcode:Optional[str]
     posterUrl: Optional[str]
     likeCount: int
     isLiked: bool
