@@ -38,7 +38,7 @@ def _env_bool(key: str, default: bool = False) -> bool:
 
 def _front_redirect_url() -> str:
     """
-    로그인 성공 후 프론트로 이동할 URL. 운영에서는 환경변수로 고정하세요.
+    로그인 성공 후 프론트로 이동할 URL. 운영에서는 환경변수로 고정해야 함.
     예) https://modiemodie.com/login/success
     """
     return (
