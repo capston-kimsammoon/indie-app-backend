@@ -41,7 +41,6 @@ class ArtistSummary(BaseModel):
     id: int
     name: str
     image_url: Optional[str]
-
 class PerformanceDetailResponse(BaseModel):
     id: int
     title: str
@@ -49,12 +48,12 @@ class PerformanceDetailResponse(BaseModel):
     venueId: int
     venue: str
     artists: List[ArtistSummary]
-    price: str
-    ticket_open_date: Optional[date]
-    ticket_open_time: Optional[time]
-    detailLink: Optional[str]
-    shortcode:Optional[str]
-    posterUrl: Optional[str]
+    price: Optional[str] = None
+    ticket_open_date: Optional[date] = None
+    ticket_open_time: Optional[time] = None
+    detailLink: Optional[str] = None
+    shortcode: Optional[str] = None
+    posterUrl: Optional[str] = None
     likeCount: int
     isLiked: bool
     isAlarmed: bool
