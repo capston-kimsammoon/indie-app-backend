@@ -46,7 +46,8 @@ def read_performances_by_date(
                 id=p.id,
                 title=p.title,
                 venue=p.venue.name if p.venue else "알 수 없음",
-                thumbnail=p.image_url
+                thumbnail=p.image_url,
+                region=p.venue.region   # ✅ 이 줄 추가
             )
             for p in performances
         ]
@@ -55,6 +56,7 @@ def read_performances_by_date(
             "date": str(date),
             "region": region if region else [],  # ✅ 여기를 고친 거야 (반드시 List[str]로 반환)
             "performances": result
+            
         }
 
     except Exception as e:

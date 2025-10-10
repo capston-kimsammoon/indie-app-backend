@@ -14,6 +14,8 @@ class CalendarPerformanceItem(BaseModel):
     title: str
     venue: str
     thumbnail: Optional[str]
+    region: str   # ✅ 이 줄 추가
+
 
 # 날짜별 공연 리스트 응답 스키마
 class CalendarPerformanceListResponse(BaseModel):
