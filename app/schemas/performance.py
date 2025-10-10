@@ -4,10 +4,12 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, time, date
 
+
 class ArtistSimple(BaseModel):
     id: int
     name: str
     image_url: Optional[str]
+
 
 class PerformanceHomeItem(BaseModel):
     id: int
@@ -20,6 +22,7 @@ class PerformanceHomeItem(BaseModel):
     class Config:
         from_attributes = True
 
+
 class PerformanceListItem(BaseModel):
     id: int
     title: str
@@ -28,19 +31,24 @@ class PerformanceListItem(BaseModel):
     time: Optional[str] = None
     thumbnail: Optional[str]
 
+
 class PerformanceListResponse(BaseModel):
     page: Optional[int] = None
     totalPages: Optional[int] = None
     performances: List[PerformanceListItem]
 
+
 class RecommendationResponse(BaseModel):
     userId: int
     recommendations: List[PerformanceHomeItem]
+
 
 class ArtistSummary(BaseModel):
     id: int
     name: str
     image_url: Optional[str]
+
+
 class PerformanceDetailResponse(BaseModel):
     id: int
     title: str
@@ -58,6 +66,11 @@ class PerformanceDetailResponse(BaseModel):
     isLiked: bool
     isAlarmed: bool
 
+    class Config:
+        from_attributes = True  
+        exclude_none = False     # ✅ None도 JSON 응답에 포함
+
+
 # ✅ 새로 추가된 응답 스키마 (티켓 오픈용)
 class PerformanceTicketOpenItem(BaseModel):
     id: int
@@ -70,6 +83,7 @@ class PerformanceTicketOpenItem(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class PerformanceTicketOpenListResponse(BaseModel):
     page: Optional[int] = None
