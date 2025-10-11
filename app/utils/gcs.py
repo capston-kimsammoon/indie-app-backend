@@ -22,3 +22,20 @@ def upload_to_gcs(file: UploadFile, folder: str) -> str:
     blob.upload_from_file(file.file, content_type=file.content_type)
 
     return f"{GCS_BUCKET_URL}{fname}"
+
+
+def delete_from_gcs(file_url: str):
+    """
+    file_url: 업로드된 전체 URL
+    """
+    if not file_url.startswith(GCS_BUCKET_URL):
+        return
+    
+    file_path = file_url.replace(GCS_BUCKET_URL, "")
+    blob = bucket.blob(file_path)
+
+    if blob.exists():
+        blob.delete()
+        print(f"Deleted {file_path} from GCS.")
+    else:
+        print(f"{file_path} not found in GCS.")
