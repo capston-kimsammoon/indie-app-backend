@@ -13,7 +13,7 @@ from app.models.review_image import ReviewImage
 from app.models.venue import Venue
 from app.models.user import User
 from app.utils.dependency import get_current_user, get_current_user_optional  # 로그인 사용자 (없으면 401)
-from app.utils.gcs import upload_to_gcs
+from app.utils.gcs import upload_to_gcs, delete_from_gcs
 from app.schemas.review import ReviewOut, ReviewListOut,  UserBrief, ReviewImageOut, ReviewCreateIn
 from datetime import datetime, timedelta, timezone
 
@@ -275,7 +275,7 @@ async def create_review(
 
     saved_rows: list[ReviewImage] = []
 
-    base_folder = f"review/{current_user.kakao_id}/{venue_id}"
+    base_folder = f"review/{current_user.id}/{venue_id}"
 
     for up in (images or [])[:MAX_FILES]:
         ext = os.path.splitext(up.filename)[-1].lower()
@@ -316,7 +316,7 @@ def delete_review(
 ):
     r = (
         db.query(Review)
-        .options(joinedload(Review.user))
+        .options(joinedload(Review.user), joinedload(Review.images))
         .filter(Review.id == review_id)
         .first()
     )
@@ -324,6 +324,12 @@ def delete_review(
         raise HTTPException(status_code=404, detail="Review not found")
     if r.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not the author")
+
+    # 이미지 삭제
+    if r.images:
+        for img in r.images:
+            delete_from_gcs(img.image_url)
+
     db.delete(r)
     db.commit()
     return {"ok": True}
