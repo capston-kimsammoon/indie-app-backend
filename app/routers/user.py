@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.database import get_db
 from app.utils.dependency import get_current_user
+from app.utils.gcs import upload_to_gcs, delete_from_gcs
 
 # crud
 from app.crud import user as user_crud
@@ -27,6 +28,8 @@ from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # app/ 내부라면
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+GCS_BUCKET_URL = f"https://storage.googleapis.com/{os.getenv('GCS_BUCKET_NAME')}/"
 
 router = APIRouter(
     prefix="/user",
@@ -62,19 +65,28 @@ async def update_profile_image(
     user: User = Depends(get_current_user)
 ):
     if not profileImage:
-        raise HTTPException(status_code=400, detail="이미지가 필요합니다")
+        # 이전 이미지 삭제
+        if user.profile_url and GCS_BUCKET_URL in user.profile_url:
+            delete_from_gcs(user.profile_url)
+        
+        # DB 기본 이미지 URL로 세팅 (또는 None)
+        user.profile_url = None
+        db.commit()
+        db.refresh(user)
+        
+        return {
+            "message": "기본 이미지로 변경되었습니다.",
+            "profileImageUrl": None
+        }
+    
+    # 기존 이미지 삭제
+    if user.profile_url:
+        delete_from_gcs(user.profile_url)
 
-    save_dir = os.path.join(STATIC_DIR, "profiles")
-    os.makedirs(save_dir, exist_ok=True)
+    # 새 이미지 업로드 (user-profile/{user_id})
+    image_url = upload_to_gcs(profileImage, folder=f"user-profile/{user.id}")
 
-    filename = f"{user.id}_{profileImage.filename}"
-    save_path = os.path.join(save_dir, filename)
-
-    with open(save_path, "wb") as f:
-        f.write(await profileImage.read())
-
-    image_url = f"http://localhost:8000/static/profiles/{user.id}_{profileImage.filename}"
-
+    # DB 업데이트
     user.profile_url = image_url
     db.commit()
     db.refresh(user)
