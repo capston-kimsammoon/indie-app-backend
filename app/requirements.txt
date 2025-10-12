@@ -7,3 +7,6 @@ pydantic-settings
 pymysql
 python-dotenv
 pytz
+
+
+google-cloud-storage>=2.18.0
