@@ -22,3 +22,5 @@ from .review import Review
 from .stamp import Stamp
 from .magazine import Magazine
 from .magazine_block import MagazineBlock   
+
+from .review_report import ReviewReport
