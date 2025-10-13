@@ -14,6 +14,7 @@ class Venue(Base):
     image_url = Column(String(200))
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
+    description = Column(String(200), nullable=True)
 
     performances = relationship("Performance", back_populates="venue")
 

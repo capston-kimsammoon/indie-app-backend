@@ -58,7 +58,6 @@ def get_venue_list(
 
 
 
-# 🎯 공연장 상세 정보 조회
 @router.get("/{venue_id}", response_model=VenueDetailResponse)
 def get_venue_detail(
     venue_id: int,
@@ -94,6 +93,7 @@ def get_venue_detail(
     return VenueDetailResponse(
         id=venue.id,
         name=venue.name,
+        description=venue.description,
         image_url=venue.image_url,
         instagram_account=venue.instagram_account,
         address=venue.address,
@@ -102,4 +102,3 @@ def get_venue_detail(
         upcomingPerformance=upcoming_performances,
         pastPerformance=past_performances
     )
-
