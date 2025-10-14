@@ -40,7 +40,7 @@ def _parse_payload(payload_json: Optional[str]) -> Optional[Union[Dict[str, Any]
 def list_notifications(db: Session = Depends(get_db), user=Depends(get_current_user)):
     rows: List[Notification] = (
         db.query(Notification)
-        .filter(Notification.user_id == user.id)
+        .filter(Notification.user_id == user.id,  Notification.is_read == False )
         .order_by(Notification.created_at.desc())
         .limit(100)
         .all()
