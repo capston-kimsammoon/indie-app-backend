@@ -72,7 +72,7 @@ def remove(nid: int, db: Session = Depends(get_db), user=Depends(get_current_use
     n = db.query(Notification).filter_by(id=nid, user_id=user.id).first()
     if not n:
         raise HTTPException(404, "Notification not found")
-    db.delete(n)
+    n.is_read =True
     db.commit()
     return {"ok": True}
 
