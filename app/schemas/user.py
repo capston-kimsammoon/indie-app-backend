@@ -32,7 +32,7 @@ class UserUpdateNickname(BaseModel):
 # 프로필 이미지 변경 응답 모델
 class UserProfileImageResponse(BaseModel):
     message: str
-    profileImageUrl: str
+    profileImageUrl: Optional[str] = None 
 
 # 공연 알림/위치 설정 변경 요청 모델
 class UserSettingUpdateRequest(BaseModel):
