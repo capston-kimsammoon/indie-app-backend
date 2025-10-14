@@ -21,7 +21,7 @@ class UserRead(BaseModel):
 class UserMyPageResponse(BaseModel):
     id: int
     nickname: str
-    profile_url: str
+    profile_url: Optional[str] = None
     alarm_enabled: bool
     location_enabled: bool
 
