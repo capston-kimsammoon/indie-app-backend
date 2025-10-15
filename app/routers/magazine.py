@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
+from app.schemas.magazine import MagazineDetailResponse, MagazineBlockOut
 
 from app.database import get_db
 from app.crud.magazine import (
@@ -45,12 +46,12 @@ def get_magazine_detail(
             first_image_url = b.image_url
             break
 
-    return {
-        "id": m.id,
-        "slug": None,
-        "title": m.title,
-        "author": None,
-        "cover_image_url": first_image_url,
-        "created_at": m.created_at,
-        "blocks": blocks,
-    }
+    return MagazineDetailResponse(
+    id=m.id,
+    slug=None,
+    title=m.title,
+    author=None,
+    cover_image_url=first_image_url,
+    created_at=m.created_at,
+    blocks=[MagazineBlockOut.model_validate(b) for b in blocks],
+)
