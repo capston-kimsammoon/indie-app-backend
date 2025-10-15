@@ -46,12 +46,12 @@ def get_magazine_detail(
             first_image_url = b.image_url
             break
 
-    return MagazineDetailResponse(
-    id=m.id,
-    slug=None,
-    title=m.title,
-    author=None,
-    cover_image_url=first_image_url,
-    created_at=m.created_at,
-    blocks=[MagazineBlockOut.model_validate(b) for b in blocks],
-)
+    return {
+        "id": m.id,
+        "slug": None,
+        "title": m.title,
+        "author": None,
+        "cover_image_url": first_image_url,
+        "created_at": m.created_at,
+        "blocks": blocks,
+    }
