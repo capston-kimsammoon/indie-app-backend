@@ -79,7 +79,7 @@ def search_venue(
     )
 
 
-#  아티스트 검색
+# 아티스트 검색
 @router.get("/artist", response_model=search_schema.ArtistSearchResponse)
 def search_artist(
     keyword: str,
