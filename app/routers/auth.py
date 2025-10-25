@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 import os
 import random
 import string
+import requests
 from secrets import token_urlsafe
 from typing import Optional
 from urllib.parse import urlparse
@@ -19,10 +20,17 @@ from app.config import settings as app_settings
 
 # utils
 from app.utils.auth import auth as auth_utils
-from app.utils.auth.kakao import get_kakao_access_token, get_kakao_user_info
+from app.utils.auth.kakao import get_kakao_access_token, get_kakao_user_info, kakao_unlink
 
 # models
 from app.models.user import User
+from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
+from app.models.review import Review
+from app.models.review_like import ReviewLike
+from app.models.stamp import Stamp
+from app.models.user_favorite_artist import UserFavoriteArtist
+from app.models.user_favorite_performance import UserFavoritePerformance
+from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -83,10 +91,13 @@ def _delete_cookie_kwargs() -> dict:
 # 1) 프론트에 카카오 로그인 URL 제공 (force=true면 계정선택 강제)
 # ─────────────────────────────────────────────────────────────
 @router.get("/kakao/login")
-def get_kakao_login_url(force: bool = Query(False)):
+def get_kakao_login_url(client: str = Query("web"), force: bool = Query(False)):
     kakao_client_id = app_settings.KAKAO_REST_API_KEY
-    redirect_uri = app_settings.KAKAO_REDIRECT_URI
-    state = token_urlsafe(16)  # (선택) CSRF 방지 – 세션/스토리지로 검증하려면 추가 구현
+    redirect_uri = app_settings.KAKAO_REDIRECT_URI 
+
+    # state에 모드 표시 (예: native:랜덤값)
+    mode_prefix = "native:" if client == "native" else "web:"
+    state = mode_prefix + token_urlsafe(16)
 
     login_url = (
         "https://kauth.kakao.com/oauth/authorize"
@@ -98,9 +109,13 @@ def get_kakao_login_url(force: bool = Query(False)):
     if force:
         login_url += "&prompt=login"  # 계정 선택 강제
 
-    return {"loginUrl": login_url, "state": state}
+    return {"loginUrl": login_url, "state": state, "client": client}
 
 
+# ─────────────────────────────────────────────────────────────
+# 2) 콜백: code -> kakao token -> kakao me -> DB upsert
+#    토큰 쿠키로 심고 리다이렉트/팝업/JSON
+# ─────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────
 # 2) 콜백: code -> kakao token -> kakao me -> DB upsert
 #    토큰 쿠키로 심고 리다이렉트/팝업/JSON
@@ -109,24 +124,29 @@ def get_kakao_login_url(force: bool = Query(False)):
 def kakao_callback(
     code: str,
     db: Session = Depends(get_db),
-    mode: str = Query(default="redirect", pattern="^(redirect|popup|json)$"),
+    state: str = Query(...),
 ):
     try:
-        # (1) code -> kakao access_token
-        kakao_access_token = get_kakao_access_token(code)
+        # state에서 모드 추출
+        if state.startswith("native:"):
+            mode = "native"
+            real_state = state[len("native:"):]
+        else:
+            mode = "redirect"
+            real_state = state[len("web:"):] if state.startswith("web:") else state
 
-        # (2) kakao me
+        # 1) 카카오 토큰/정보
+        kakao_access_token = get_kakao_access_token(code)
         kakao_user_info = get_kakao_user_info(kakao_access_token)
-        kakao_id = str(kakao_user_info["id"])  # 문자열로 통일
-        acc = (kakao_user_info.get("kakao_account") or {})
-        prof = (acc.get("profile") or {})
+        kakao_id = str(kakao_user_info["id"])
+        acc = kakao_user_info.get("kakao_account") or {}
+        prof = acc.get("profile") or {}
         base_nickname = (prof.get("nickname") or "").strip() or "user"
         profile_url: Optional[str] = prof.get("profile_image_url")
 
-        # (3) DB upsert
+        # 2) DB upsert
         user: Optional[User] = db.query(User).filter(User.kakao_id == kakao_id).first()
         if not user:
-            # 신규 가입
             nickname = base_nickname
             for _ in range(6):
                 try:
@@ -146,9 +166,8 @@ def kakao_callback(
                     suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=4))
                     nickname = f"{base_nickname}_{suffix}"
             else:
-                raise HTTPException(status_code=400, detail="닉네임 생성 실패. 다시 시도해 주세요.")
+                raise HTTPException(status_code=400, detail="닉네임 생성 실패.")
         else:
-            # 기존 유저: 비어있는 필드만 보정(사용자 입력은 보존)
             changed = False
             if (not user.nickname or user.nickname.strip() == "") and base_nickname:
                 user.nickname = base_nickname; changed = True
@@ -165,18 +184,18 @@ def kakao_callback(
                 except IntegrityError:
                     db.rollback()
 
-        # (4) 토큰 발급/저장
+        # 3) 토큰 발급
         access_token = auth_utils.create_access_token(user.id)
         refresh_token = auth_utils.create_refresh_token(user.id)
         user.refresh_token = refresh_token
         db.commit()
 
-        # (5) 쿠키 세팅 + 응답 형태 분기
         cookie_kw = _cookie_kwargs()
         front_redirect = _front_redirect_url()
 
+        # ───── 웹/팝업 ─────
         if mode == "redirect":
-            resp = RedirectResponse(url=front_redirect, status_code=302)
+            resp = RedirectResponse(url=front_redirect)
             resp.set_cookie("access_token", access_token, **cookie_kw)
             resp.set_cookie("refresh_token", refresh_token, **cookie_kw)
             return resp
@@ -201,13 +220,18 @@ def kakao_callback(
               }})();
             </script>
             """
-            resp = HTMLResponse(content=html)
-            # 팝업 흐름에서도 백엔드 도메인에 쿠키 심어둠
+            resp = HTMLResponse(html)
             resp.set_cookie("access_token", access_token, **cookie_kw)
             resp.set_cookie("refresh_token", refresh_token, **cookie_kw)
             return resp
 
-        # fallback: JSON
+        # ───── 네이티브 앱 ─────
+        if mode == "native":
+            native_scheme = "indieapp://auth/callback"
+            redirect_url = f"{native_scheme}?access={access_token}&refresh={refresh_token}"
+            return RedirectResponse(redirect_url)
+
+        # ───── fallback JSON ─────
         resp = JSONResponse({
             "accessToken": access_token,
             "refreshToken": refresh_token,
@@ -220,7 +244,6 @@ def kakao_callback(
     except HTTPException:
         raise
     except Exception as e:
-        # 개발 편의상 detail에 원인 출력 (운영에서는 일반화된 메시지 권장)
         raise HTTPException(status_code=500, detail=f"카카오 로그인 처리 중 오류: {e}")
 
 
@@ -236,6 +259,58 @@ def logout_user(
     db.commit()
 
     resp = JSONResponse({"message": "로그아웃되었습니다."})
+    delete_kw = _delete_cookie_kwargs()
+    for name in ("access_token", "refresh_token"):
+        resp.delete_cookie(name, **delete_kw)
+    return resp
+
+def kakao_unlink_admin():
+    """
+    카카오 Admin Key를 사용한 사용자 unlink
+    """
+    url = "https://kapi.kakao.com/v1/user/unlink"
+    headers = {"Authorization": f"KakaoAK {app_settings.KAKAO_ADMIN_KEY}"}
+    res = requests.post(url, headers=headers)
+    res.raise_for_status()
+    return res.json()
+    
+# ─────────────────────────────────────────────────────────────
+# 4) 회원 탈퇴
+# ─────────────────────────────────────────────────────────────
+@router.delete("/withdraw")
+async def withdraw_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # 1) 카카오 연결 해제 (있을 때만)
+    if getattr(current_user, "kakao_id", None):
+        try:
+            kakao_unlink(current_user.kakao_id)
+        except Exception as e:
+            print("[kakao_unlink:error]", e)
+
+    # 2) 사용자 관련 하위 테이블 정리 (FK 먼저 삭제)
+    def _del(model):
+        try:
+            db.query(model).filter_by(user_id=current_user.id).delete(synchronize_session=False)
+        except Exception as e:
+            print(f"[withdraw][cleanup:{model.__name__}]", e)
+
+    _del(UserArtistTicketAlarm)
+    _del(UserPerformanceTicketAlarm)
+    _del(UserFavoriteArtist)
+    _del(UserFavoritePerformance)
+    _del(ReviewLike)
+    _del(Stamp)
+    _del(Review)
+
+    # 3) 유저 삭제
+    db.flush()
+    db.delete(current_user)
+    db.commit()
+
+    # 4) 쿠키 제거
+    resp = JSONResponse({"message": "탈퇴되었습니다."})
     delete_kw = _delete_cookie_kwargs()
     for name in ("access_token", "refresh_token"):
         resp.delete_cookie(name, **delete_kw)
