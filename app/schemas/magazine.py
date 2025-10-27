@@ -24,6 +24,7 @@ class MagazineListItem(BaseModel):
     cover_image_url: Optional[str] = None
     author: Optional[str] = None
     created_at: datetime
+    content: Optional[int] = None  # 👈 추가: 공연 ID
 
     class Config:
         from_attributes = True
@@ -36,6 +37,7 @@ class MagazineDetailResponse(BaseModel):
     cover_image_url: Optional[str] = None
     created_at: datetime
     blocks: List[MagazineBlockOut]
+    content: Optional[int] = None  # 👈 추가: 공연 ID
 
     class Config:
         from_attributes = True

@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
-from app.schemas.magazine import MagazineDetailResponse, MagazineBlockOut
 
 from app.database import get_db
 from app.crud.magazine import (
@@ -28,7 +27,6 @@ def list_magazines(
     magazines = get_magazines(db, limit=limit, page=page, size=size)
     items = hydrate_list_item_fields(db, magazines)
     return items
-
 @router.get("/magazine/{magazine_id}", response_model=MagazineDetailResponse)
 def get_magazine_detail(
     magazine_id: int,
@@ -54,4 +52,5 @@ def get_magazine_detail(
         "cover_image_url": first_image_url,
         "created_at": m.created_at,
         "blocks": blocks,
+        "content": m.content if m.content not in [None, '', 0] else None,  # ✅ 빈 값 체크
     }
