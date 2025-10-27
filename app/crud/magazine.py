@@ -60,6 +60,7 @@ def hydrate_list_item_fields(db: Session, magazines: List[Magazine]) -> List[dic
                 "cover_image_url": _first_image_url(db, m.id),
                 "author": None,
                 "created_at": m.created_at,
+                "content": m.content if m.content not in [None, ''] else None,  # ✅ 빈 문자열 체크
             }
         )
     return items
