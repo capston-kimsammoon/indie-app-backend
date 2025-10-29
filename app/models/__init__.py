@@ -24,3 +24,9 @@ from .magazine import Magazine
 from .magazine_block import MagazineBlock   
 
 from .review_report import ReviewReport
+
+
+
+#  새로 추가 (뮤직 매거진)
+from .music_magazine import MusicMagazine
+from .music_magazine_block import MusicMagazineBlock
