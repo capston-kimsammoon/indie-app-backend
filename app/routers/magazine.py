@@ -24,9 +24,16 @@ def list_magazines(
     size: Optional[int] = Query(None, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    magazines = get_magazines(db, limit=limit, page=page, size=size)
-    items = hydrate_list_item_fields(db, magazines)
-    return items
+    try:
+        magazines = get_magazines(db, limit=limit, page=page, size=size)
+        items = hydrate_list_item_fields(db, magazines)
+        return items
+    except Exception as e:
+        import traceback
+        traceback.print_exc() 
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 @router.get("/magazine/{magazine_id}", response_model=MagazineDetailResponse)
 def get_magazine_detail(
     magazine_id: int,
@@ -54,3 +61,4 @@ def get_magazine_detail(
         "blocks": blocks,
         "content": m.content if m.content not in [None, '', 0] else None,  # ✅ 빈 값 체크
     }
+
