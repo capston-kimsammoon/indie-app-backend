@@ -17,7 +17,7 @@ from app.schemas.music_magazine import (
 
 router = APIRouter()
 
-@router.get("/music-magazine", response_model=List[MusicMagazineListItem])
+@router.get("/", response_model=List[MusicMagazineListItem])
 def list_music_magazines(
     limit: Optional[int] = Query(None, ge=1, le=50),
     page: Optional[int] = Query(None, ge=1),
@@ -28,7 +28,7 @@ def list_music_magazines(
     items = hydrate_list_item_fields(db, magazines)
     return items
 
-@router.get("/music-magazine/{magazine_id}", response_model=MusicMagazineDetailResponse)
+@router.get("/{magazine_id}", response_model=MusicMagazineDetailResponse)
 def get_music_magazine_detail(
     magazine_id: int,
     db: Session = Depends(get_db),
