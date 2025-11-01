@@ -79,7 +79,7 @@ app.include_router(notification_router.alias)
 app.include_router(review.router)
 app.include_router(stamp.router)
 app.include_router(review_report.router)
-app.include_router(music_magazine.router)   # <-- ✅ 추가
+app.include_router(music_magazine.router, prefix="/musicmagazine")
 
 
 # --- Root ---
