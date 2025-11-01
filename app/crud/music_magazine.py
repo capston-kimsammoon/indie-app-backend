@@ -18,11 +18,17 @@ def _first_image_url(db: Session, magazine_id: int) -> Optional[str]:
     return b.image_url if b else None
 
 def _first_text_excerpt(db: Session, magazine_id: int, max_len: int = 140) -> Optional[str]:
+    """
+    ✅ type='text'이면서 text 필드가 NULL이 아닌 블록 중
+    display_order가 가장 작은 것의 text를 반환
+    """
     b = (
         db.query(MusicMagazineBlock)
         .filter(
             MusicMagazineBlock.magazine_id == magazine_id,
             MusicMagazineBlock.type == "text",
+            MusicMagazineBlock.text.isnot(None),  # ✅ text가 NULL이 아닌 것만
+            MusicMagazineBlock.text != "",         # ✅ 빈 문자열도 제외
         )
         .order_by(asc(MusicMagazineBlock.display_order))
         .first()
@@ -65,7 +71,7 @@ def hydrate_list_item_fields(db: Session, magazines: List[MusicMagazine]) -> Lis
                 "cover_image_url": _first_image_url(db, m.id),
                 "author": None,
                 "created_at": m.created_at,
-                "content": None,  # MusicMagazine에는 별도 content 컬럼 없음
+                "content": None,
             }
         )
     return items
