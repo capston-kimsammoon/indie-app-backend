@@ -9,7 +9,7 @@ from app.database import SessionLocal, engine
 from app.routers import (
     auth, user, search, nearby, venue, alert, like,
     performance, performance_home, calender, artist,
-    magazine, review, stamp
+    magazine, review, stamp, review_report , music_magazine
 )
 from app.routers import notification as notification_router
 from app.routers import mood as mood_router
@@ -78,6 +78,8 @@ app.include_router(notification_router.router)
 app.include_router(notification_router.alias)
 app.include_router(review.router)
 app.include_router(stamp.router)
+app.include_router(review_report.router)
+app.include_router(music_magazine.router, prefix="/musicmagazine")
 
 
 # --- Root ---

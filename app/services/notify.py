@@ -1,5 +1,6 @@
 # app/services/notify.py
 import json
+import asyncio
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Iterable, List, Dict, Optional
 from sqlalchemy.orm import Session
@@ -10,25 +11,35 @@ from app.models.performance_artist import PerformanceArtist
 from app.models.user_favorite_performance import UserFavoritePerformance
 from app.models.user_favorite_artist import UserFavoriteArtist
 from app.models.user_artist_ticketalarm import UserArtistTicketAlarm
-from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm  # ✅ 사용
+from app.models.user_performance_ticketalarm import UserPerformanceTicketAlarm
+from app.models.user import User
+from app.utils.notify import send_expo_push
 from app.constants.notification_types import (
     NEW_PERFORMANCE_BY_ARTIST, TICKET_OPEN, FAVORITE_PERFORMANCE_D1
 )
 
 KST = timezone(timedelta(hours=9))
 
-
 # ---------- 내부 유틸 ----------
 def _payload_key(perf_id: int) -> str:
     """payload_json과 동일한 직렬화 포맷(키 순서/구분자) 유지"""
     return json.dumps({"performance_id": perf_id}, separators=(",", ":"), ensure_ascii=False)
 
-def _notification_exists(db: Session, *, user_id: int, type_: str, perf_id: int) -> bool:
-    return db.query(Notification).filter(
-        Notification.user_id == user_id,
-        Notification.type == type_,
-        Notification.payload_json == _payload_key(perf_id),
-    ).first() is not None
+def _notification_exists(db: Session, *, user_id: int, type_: str, perf_id: Optional[int] = None, payload_json: Optional[str] = None) -> bool:
+    """기존 알림 존재 여부 검사 (perf_id 또는 payload_json 방식 모두 지원)"""
+    if perf_id is not None:
+        return db.query(Notification).filter(
+            Notification.user_id == user_id,
+            Notification.type == type_,
+            Notification.payload_json == _payload_key(perf_id),
+        ).first() is not None
+    elif payload_json is not None:
+        return db.query(Notification).filter(
+            Notification.user_id == user_id,
+            Notification.type == type_,
+            Notification.payload_json == payload_json
+        ).first() is not None
+    return False
 
 def _kst_noon(d: date) -> datetime:
     """해당 날짜의 12:00 KST"""
@@ -51,7 +62,6 @@ def _mk_notification(
         payload_json=json.dumps(payload, separators=(",", ":"), ensure_ascii=False) if payload is not None else None,
         is_read=False,
     )
-
 
 # ---------- 공개 API ----------
 def create_notification(
@@ -130,95 +140,6 @@ def notify_artist_followers_on_new_performance(
     return {"created": 0}
 
 
-def dispatch_scheduled_notifications(
-    db: Session,
-    *,
-    now_utc_override: Optional[datetime] = None,  # 테스트용: 가짜 시간 주입
-    force_ticket_open: bool = False,              # 테스트용: 시간검사 무시(예매오픈)
-    force_favorite_d1: bool = False,             # ✅ 테스트용: 시간검사 무시(D-1)
-) -> dict:
-    now_utc = (now_utc_override or datetime.utcnow()).replace(tzinfo=timezone.utc)
-
-    # ---------- (1) 예매오픈 ----------
-    open_rows = db.query(
-        UserPerformanceTicketAlarm.user_id,
-        UserPerformanceTicketAlarm.performance_id
-    ).all()
-
-    to_create_open: List[Notification] = []
-
-    perf_cache: Dict[int, Performance] = {}
-    def _get_perf(pid: int) -> Optional[Performance]:
-        if pid not in perf_cache:
-            perf_cache[pid] = db.query(Performance).filter(Performance.id == pid).first()
-        return perf_cache[pid]
-
-    for uid, pid in open_rows:
-        perf = _get_perf(pid)
-        if not perf or not perf.ticket_open_date:
-            continue
-
-        # ✅ 공연이 이미 시작/종료된 경우 스킵
-        if now_utc >= _perf_start_kst(perf).astimezone(timezone.utc):
-            continue
-
-        due_utc = _kst_noon(perf.ticket_open_date - timedelta(days=1)).astimezone(timezone.utc)
-        if not force_ticket_open and now_utc < due_utc:
-            continue
-        if _notification_exists(db, user_id=uid, type_=TICKET_OPEN, perf_id=pid):
-            continue
-
-        to_create_open.append(_mk_notification(
-            user_id=uid,
-            type_=TICKET_OPEN,
-            title="예매 오픈 알림",
-            body=f"『{perf.title}』 예매가 곧 열립니다.",
-            link_url=f"/performance/{perf.id}",
-            payload={"performance_id": perf.id},
-        ))
-
-    if to_create_open:
-        db.add_all(to_create_open)
-        db.commit()
-
-    # ---------- (2) 공연찜 D-1 ----------
-    fav_rows = db.query(UserFavoritePerformance.user_id, UserFavoritePerformance.performance_id).all()
-    to_create_fav: List[Notification] = []
-
-    for uid, pid in fav_rows:
-        perf = _get_perf(pid)
-        if not perf or not perf.date:
-            continue
-
-        # ✅ 이미 시작/종료된 공연은 스킵
-        if now_utc >= _perf_start_kst(perf).astimezone(timezone.utc):
-            continue
-
-        due_utc = _kst_noon(perf.date - timedelta(days=1)).astimezone(timezone.utc)
-        if not force_favorite_d1 and now_utc < due_utc:  # ✅ 강제 옵션 반영
-            continue
-        if _notification_exists(db, user_id=uid, type_=FAVORITE_PERFORMANCE_D1, perf_id=pid):
-            continue
-
-        to_create_fav.append(_mk_notification(
-            user_id=uid,
-            type_=FAVORITE_PERFORMANCE_D1,
-            title="공연 D-1 알림",
-            body=f"『{perf.title}』 공연이 내일입니다.",
-            link_url=f"/performance/{perf.id}",
-            payload={"performance_id": perf.id},
-        ))
-
-    if to_create_fav:
-        db.add_all(to_create_fav)
-        db.commit()
-
-    return {
-        "created_ticket_open": len(to_create_open),
-        "created_favorite_d1": len(to_create_fav),
-    }
-
-
 def reconcile_new_performance_notifications(db: Session, since_hours: int = 72) -> dict:
     """
     최근 since_hours 시간 내 '생성된 공연'을 스캔하여
@@ -279,3 +200,98 @@ def reconcile_new_performance_notifications(db: Session, since_hours: int = 72) 
         total_created = len(to_create_bulk)
 
     return {"scanned_performances": len(perfs), "created_notifications": total_created}
+
+
+# ---------- 통합 Dispatch (DB 알림 + 푸시 전송) ----------
+def dispatch_scheduled_notifications(db: Session, *, now_utc_override: Optional[datetime] = None) -> dict:
+    """DB 알림 생성 + Expo Push 전송까지 한 번에 처리"""
+
+    now_utc = (now_utc_override or datetime.utcnow()).replace(tzinfo=timezone.utc)
+
+    # (1) 예매오픈 알림
+    open_rows = db.query(UserPerformanceTicketAlarm.user_id, UserPerformanceTicketAlarm.performance_id).all()
+    to_create_open: List[Notification] = []
+    perf_cache: Dict[int, Performance] = {}
+
+    def _get_perf(pid: int) -> Optional[Performance]:
+        if pid not in perf_cache:
+            perf_cache[pid] = db.query(Performance).filter(Performance.id == pid).first()
+        return perf_cache[pid]
+
+    for uid, pid in open_rows:
+        perf = _get_perf(pid)
+        if not perf or not perf.ticket_open_date:
+            continue
+        due_utc = datetime.combine(perf.ticket_open_date - timedelta(days=1), time(12, 0), tzinfo=KST).astimezone(timezone.utc)
+        if now_utc < due_utc:
+            continue
+
+        payload = {"performance_id": pid}
+        payload_json = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        if _notification_exists(db, user_id=uid, type_=TICKET_OPEN, payload_json=payload_json):
+            continue
+
+        to_create_open.append(_mk_notification(
+            user_id=uid,
+            type_=TICKET_OPEN,
+            title="예매 오픈 알림",
+            body=f"『{perf.title}』 예매가 곧 열립니다.",
+            link_url=f"/performance/{perf.id}",
+            payload=payload,
+        ))
+
+    if to_create_open:
+        db.add_all(to_create_open)
+        db.commit()
+
+    # (2) 공연 D-1 알림
+    fav_rows = db.query(UserFavoritePerformance.user_id, UserFavoritePerformance.performance_id).all()
+    to_create_fav: List[Notification] = []
+
+    for uid, pid in fav_rows:
+        perf = _get_perf(pid)
+        if not perf or not perf.date:
+            continue
+        due_utc = datetime.combine(perf.date - timedelta(days=1), time(12, 0), tzinfo=KST).astimezone(timezone.utc)
+        if now_utc < due_utc:
+            continue
+
+        payload = {"performance_id": pid}
+        payload_json = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        if _notification_exists(db, user_id=uid, type_=FAVORITE_PERFORMANCE_D1, payload_json=payload_json):
+            continue
+
+        to_create_fav.append(_mk_notification(
+            user_id=uid,
+            type_=FAVORITE_PERFORMANCE_D1,
+            title="공연 D-1 알림",
+            body=f"『{perf.title}』 공연이 내일입니다.",
+            link_url=f"/performance/{perf.id}",
+            payload=payload,
+        ))
+
+    if to_create_fav:
+        db.add_all(to_create_fav)
+        db.commit()
+
+    # (3) Expo Push 전송
+    async def _send_push(notifications: List[Notification]):
+        tasks = []
+        for n in notifications:
+            user = db.query(User).filter(User.id == n.user_id).first()
+            if user and user.alarm_enabled and user.push_token:
+                tasks.append(send_expo_push(
+                    token=user.push_token,
+                    title=n.title,
+                    body=n.body,
+                    payload={"nid": n.id}
+                ))
+        if tasks:
+            await asyncio.gather(*tasks)
+
+    asyncio.run(_send_push(to_create_open + to_create_fav))
+
+    return {
+        "created_ticket_open": len(to_create_open),
+        "created_favorite_d1": len(to_create_fav),
+    }

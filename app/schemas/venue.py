@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -33,16 +34,20 @@ class VenuePerformanceItem(BaseModel):
         orm_mode = True
 
 # 공연장 상세 정보 + 예정 공연 응답 모델
+
+
+
 class VenueDetailResponse(BaseModel):
     id: int
     name: str
+    description: Optional[str] = None        # ← 추가
     image_url: Optional[str] = None
-    instagram_account: Optional[str] = None   # ← Optional
+    instagram_account: Optional[str] = None
     address: str
     latitude: float
     longitude: float
-    upcomingPerformance: List[VenuePerformanceItem] = []  
+    upcomingPerformance: List[VenuePerformanceItem] = []
     pastPerformance: List[VenuePerformanceItem] = []
-    
+
     class Config:
         orm_mode = True

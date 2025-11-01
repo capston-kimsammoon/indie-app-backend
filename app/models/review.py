@@ -14,6 +14,6 @@ class Review(Base):
 
     user = relationship("User", back_populates="reviews")
     venue = relationship("Venue", back_populates="reviews")
-    images = relationship("ReviewImage", back_populates="review", cascade="all, delete-orphan") 
+    images = relationship("ReviewImage", back_populates="review", cascade="all, delete-orphan")
     likes  = relationship("ReviewLike",  back_populates="review", cascade="all, delete-orphan")
-
+    reports = relationship("ReviewReport", back_populates="review", cascade="all, delete-orphan")

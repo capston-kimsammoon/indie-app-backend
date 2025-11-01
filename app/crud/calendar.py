@@ -13,7 +13,7 @@ def get_calendar_summary_by_month(db: Session, year: int, month: int, region: li
         Performance.date >= start_date,
         Performance.date < end_date
     )
-
+    
     if region:
         query = query.join(Performance.venue).filter(Venue.region.in_(region))
 

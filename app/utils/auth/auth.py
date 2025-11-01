@@ -1,4 +1,5 @@
 # app/utils/auth/auth.py
+import requests
 
 from datetime import datetime, timedelta
 from jose import jwt
@@ -25,3 +26,5 @@ def create_refresh_token(user_id: int) -> str:
         "exp": expire
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+

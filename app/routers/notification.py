@@ -40,7 +40,7 @@ def _parse_payload(payload_json: Optional[str]) -> Optional[Union[Dict[str, Any]
 def list_notifications(db: Session = Depends(get_db), user=Depends(get_current_user)):
     rows: List[Notification] = (
         db.query(Notification)
-        .filter(Notification.user_id == user.id)
+        .filter(Notification.user_id == user.id,  Notification.is_read == False )
         .order_by(Notification.created_at.desc())
         .limit(100)
         .all()
@@ -72,7 +72,7 @@ def remove(nid: int, db: Session = Depends(get_db), user=Depends(get_current_use
     n = db.query(Notification).filter_by(id=nid, user_id=user.id).first()
     if not n:
         raise HTTPException(404, "Notification not found")
-    db.delete(n)
+    n.is_read =True
     db.commit()
     return {"ok": True}
 
