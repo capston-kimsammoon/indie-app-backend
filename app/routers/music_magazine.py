@@ -17,7 +17,7 @@ from app.schemas.music_magazine import (
 
 router = APIRouter()
 
-@router.get("/", response_model=List[MusicMagazineListItem])
+@router.get("", response_model=List[MusicMagazineListItem])
 def list_music_magazines(
     limit: Optional[int] = Query(None, ge=1, le=50),
     page: Optional[int] = Query(None, ge=1),
