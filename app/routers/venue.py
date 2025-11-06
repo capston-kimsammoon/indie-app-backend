@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+# from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.venue import Venue
 from app.models.performance import Performance
 from app.models.review import Review
 from app.schemas.venue import VenueListResponse, VenueListItem, VenueDetailResponse, VenuePerformanceItem
+from sqlalchemy import or_, asc, text
 
 from app.crud import venue as venue_crud
 from typing import Optional, List, Union
@@ -46,6 +47,16 @@ def get_venue_list(
         query = query.filter(or_(*conditions))
 
     total = query.count()
+
+    # ✅ ㄱ-ㄴ-ㄷ(한글) 정렬 + tie-breaker로 id
+    #   - MySQL 8 권장 콜레이션: utf8mb4_0900_ai_ci
+    #   - 프로젝트 콜레이션이 다르면 해당 값으로 바꿔도 됨
+    query = query.order_by(
+        text("CONVERT(name USING utf8mb4) COLLATE utf8mb4_0900_ai_ci ASC"),
+        asc(Venue.id)
+    )
+
+    # 페이지네이션
     venues = query.offset(skip).limit(size).all()
 
     result = [
